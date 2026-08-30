@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: linear-gradient(90deg, #000000 0%, #1e1ca8 100%);
+  background-attachment: fixed;
+  color: #ffffff;
+  min-height: 100vh;
+}
+
+::selection {
+  background: #882de1;
+  color: #ffffff;
+}
+
+/* Le corps de la page embarquée (iframe du widget) doit être transparent
+   et sans marge, pour se fondre dans le site du client. */
+body.embed {
+  background: transparent;
+  min-height: 0;
+}
+
+@layer components {
+  .field {
+    @apply w-full rounded-lg border border-[#882de1]/50 bg-black px-4 py-3 text-white placeholder:text-white/40 outline-none transition-colors duration-150 hover:border-[#882de1] focus:border-[#882de1];
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center rounded-full border border-[#882de1] px-6 py-3 text-sm font-semibold text-white transition-colors duration-150 hover:border-[#c39bf0] hover:bg-[#882de1]/15 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .card {
+    @apply rounded-2xl border border-[#882de1] bg-black p-6;
+  }
+}
