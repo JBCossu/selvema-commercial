@@ -108,7 +108,7 @@ npm run dev                           # http://localhost:3002
 | `RESEND_FROM_EMAIL` | Adresse d'envoi vérifiée (déf. `onboarding@resend.dev`) |
 | `ADMIN_PASSWORD` | Mot de passe du back-office |
 | `CRON_SECRET` | Secret attendu par `/api/cron/relances` |
-| `NEXT_PUBLIC_APP_URL` | URL publique du déploiement (script widget + liens emails) |
+| `APP_URL` | URL publique du déploiement (script widget + liens emails) |
 
 ## Relances automatiques
 

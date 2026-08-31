@@ -11,4 +11,4 @@ export const FROM_EMAIL =
   process.env.RESEND_FROM_EMAIL ?? "Selvema <onboarding@resend.dev>";
 
 export const APP_URL =
-  process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "http://localhost:3002";
+  process.env.APP_URL?.replace(/\/$/, "") ?? "http://localhost:3002";
