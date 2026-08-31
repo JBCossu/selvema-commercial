@@ -25,6 +25,17 @@ body.embed {
   min-height: 0;
 }
 
+/* Page /demo : faux site d'agence immobilière, fond blanc (annule le dégradé
+   sombre du back-office). */
+body.demo {
+  background: #ffffff;
+  color: #0f172a;
+}
+body.demo ::selection {
+  background: #1e1ca8;
+  color: #ffffff;
+}
+
 /* Curseur clignotant de l'effet machine à écrire (accroche du widget). */
 @keyframes selvema-caret {
   0%,
