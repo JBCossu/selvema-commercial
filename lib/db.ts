@@ -20,7 +20,12 @@ export type Client = {
   site_url: string;
   chatbot_config: string; // prompt "base de connaissances" propre au client
   tagline: string;
-  widget_color: string;
+  // Couleurs du widget.
+  widget_color: string; //     contours : bords/bordures du widget
+  background_color: string; //  fond de la zone de conversation (80 %)
+  bubble_color: string; //      fond des bulles de l'assistant (texte blanc)
+  tagline_color: string; //     couleur du texte de la phrase d'accroche
+  top_bg_color: string; //      fond de la zone haute personnage (20 %)
 };
 
 export type ChatMessage = {

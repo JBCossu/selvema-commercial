@@ -23,14 +23,23 @@ export default async function EmbedPage({
 
   let agencyName = "Assistant";
   let ready = false;
-  let color = "#882de1";
   let tagline = "Une question ? Je suis là pour vous aider.";
+  // Couleurs du widget.
+  let borderColor = "#882de1";
+  let bgColor = "#0a0a1a";
+  let bubbleColor = "#882de1";
+  let taglineColor = "#ffffff";
+  let topBgColor = "#000000";
   try {
     const client = await getClient(clientId);
     ready = clientReady(client);
     if (client?.agency_name) agencyName = client.agency_name;
-    if (client?.widget_color) color = client.widget_color;
     if (client?.tagline) tagline = client.tagline;
+    if (client?.widget_color) borderColor = client.widget_color;
+    if (client?.background_color) bgColor = client.background_color;
+    if (client?.bubble_color) bubbleColor = client.bubble_color;
+    if (client?.tagline_color) taglineColor = client.tagline_color;
+    if (client?.top_bg_color) topBgColor = client.top_bg_color;
   } catch {
     ready = false;
   }
@@ -43,7 +52,11 @@ export default async function EmbedPage({
         agencyName={agencyName}
         tagline={tagline}
         ready={ready}
-        color={color}
+        borderColor={borderColor}
+        bgColor={bgColor}
+        bubbleColor={bubbleColor}
+        taglineColor={taglineColor}
+        topBgColor={topBgColor}
       />
     </div>
   );

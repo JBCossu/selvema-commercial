@@ -21,9 +21,14 @@ create table if not exists clients (
 alter table clients add column if not exists site_url        text not null default '';
 alter table clients add column if not exists chatbot_config  text not null default '';
 alter table clients add column if not exists tagline         text not null default 'Une question ? Je suis là pour vous aider.';
-alter table clients add column if not exists widget_color    text not null default '#882de1';
--- character_color : ajoutée puis abandonnée — le personnage suit désormais
--- widget_color (variable CSS). Colonne conservée si elle existe, plus utilisée.
+
+-- ── Couleurs du widget (5 champs configurables par client) ───────────────────
+alter table clients add column if not exists widget_color     text not null default '#882de1'; -- contours : tous les bords/bordures du widget
+alter table clients add column if not exists background_color text not null default '#0a0a1a'; -- fond de la zone de conversation (80 %)
+alter table clients add column if not exists bubble_color     text not null default '#882de1'; -- fond des bulles de l'assistant (texte blanc)
+alter table clients add column if not exists tagline_color    text not null default '#ffffff'; -- texte de la phrase d'accroche (zone 20 %)
+alter table clients add column if not exists top_bg_color     text not null default '#000000'; -- fond de la zone haute personnage (20 %)
+-- character_color : ajoutée puis abandonnée. Colonne conservée si elle existe, plus utilisée.
 
 -- Colonnes de la v1 devenues inutilisées (la "section Compléments" a été retirée
 -- du formulaire). Conservées si elles existent déjà — sans effet sur le code.

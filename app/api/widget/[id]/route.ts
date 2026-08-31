@@ -31,7 +31,12 @@ export async function GET(
       {
         agency_name: client.agency_name,
         tagline: client.tagline,
-        widget_color: client.widget_color || "#882de1",
+        // Couleurs du widget.
+        widget_color: client.widget_color || "#882de1", //     contours
+        background_color: client.background_color || "#0a0a1a", // fond conversation
+        bubble_color: client.bubble_color || "#882de1", //     bulles assistant
+        tagline_color: client.tagline_color || "#ffffff", //   texte accroche
+        top_bg_color: client.top_bg_color || "#000000", //     fond zone haute (20 %)
         ready: clientReady(client),
       },
       { headers: CORS }

@@ -51,11 +51,11 @@ body.demo ::selection {
   animation: selvema-caret 0.9s step-end infinite;
 }
 
-/* Séquence d'entrée du widget (voir ChatWidget.tsx) :
+/* Séquence d'entrée du widget (voir ChatWidget.tsx) — enchaînement serré :
    0 ms      le cadre s'affiche (zoom, géré par widget.js)
    +300 ms   le personnage se hisse depuis la zone de conversation
-   +300 ms   l'accroche s'écrit (machine à écrire)
-   +300 ms   la bulle de bienvenue apparaît vide puis se remplit lettre par lettre
+   +400 ms   l'accroche s'écrit (machine à écrire)
+   +400 ms   la bulle de bienvenue apparaît vide puis se remplit lettre par lettre
    Le cadre paraît à ~2000 ms → le personnage monte à 2,3 s. */
 @keyframes selvema-char-rise {
   from {

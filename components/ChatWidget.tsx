@@ -5,9 +5,16 @@ import { useEffect, useRef, useState } from "react";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
-const DEFAULT_COLOR = "#882de1";
 const DEFAULT_TAGLINE = "Une question ? Je suis là pour vous aider.";
-const DARK_BG = "#0a0a1a";
+
+// Couleurs par défaut — cohérentes avec le design actuel.
+const DEFAULT_BORDER = "#882de1"; //   contours : bords/bordures
+const DEFAULT_BG = "#0a0a1a"; //       fond de la zone de conversation (80 %)
+const DEFAULT_BUBBLE = "#882de1"; //   bulles de l'assistant (texte blanc)
+const DEFAULT_TAGLINE_COLOR = "#ffffff"; // texte de la phrase d'accroche
+const DEFAULT_TOP_BG = "#000000"; //   fond de la zone haute personnage (20 %)
+
+const HEX = /^#[0-9a-fA-F]{6}$/;
 
 function hexToRgba(hex: string, alpha: number): string {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
@@ -49,15 +56,33 @@ export default function ChatWidget({
   agencyName,
   tagline = DEFAULT_TAGLINE,
   ready,
-  color = DEFAULT_COLOR,
+  borderColor = DEFAULT_BORDER,
+  bgColor = DEFAULT_BG,
+  bubbleColor = DEFAULT_BUBBLE,
+  taglineColor = DEFAULT_TAGLINE_COLOR,
+  topBgColor = DEFAULT_TOP_BG,
 }: {
   clientId: string;
   agencyName: string;
   tagline?: string;
   ready: boolean;
-  color?: string;
+  /** Contours : tous les bords/bordures du widget. */
+  borderColor?: string;
+  /** Fond de la zone de conversation (80 %). */
+  bgColor?: string;
+  /** Fond des bulles de l'assistant (texte toujours blanc). */
+  bubbleColor?: string;
+  /** Couleur du texte de la phrase d'accroche (zone 20 %). */
+  taglineColor?: string;
+  /** Fond de la zone haute du personnage (20 %). */
+  topBgColor?: string;
 }) {
-  const accent = /^#[0-9a-fA-F]{6}$/.test(color) ? color : DEFAULT_COLOR;
+  // Couleurs validées, injectées ensuite comme variables CSS sur la racine.
+  const border = HEX.test(borderColor) ? borderColor : DEFAULT_BORDER;
+  const bg = HEX.test(bgColor) ? bgColor : DEFAULT_BG;
+  const bubble = HEX.test(bubbleColor) ? bubbleColor : DEFAULT_BUBBLE;
+  const taglineCol = HEX.test(taglineColor) ? taglineColor : DEFAULT_TAGLINE_COLOR;
+  const topBg = HEX.test(topBgColor) ? topBgColor : DEFAULT_TOP_BG;
   const storageKey = `selvema_conv_${clientId}`;
 
   // Accroche sur deux lignes : coupe après la 1re ponctuation forte.
@@ -68,7 +93,7 @@ export default function ChatWidget({
   const fullTagline = line2 ? `${line1}\n${line2}` : line1;
 
   const greeting = ready
-    ? `Bonjour ! Je suis l'assistant de ${agencyName}. Posez moi n'importe quelle question sur un bien, une démarche, ou quoi que ce soit. 😊`
+    ? `Bonjour ! Je suis l'assistant de ${agencyName}, disponible pour répondre à vos questions et vous orienter dans votre projet immobilier. Posez moi n'importe quelle question. 😊`
     : `Bonjour 👋 L'assistant en ligne est momentanément indisponible. Merci de revenir un peu plus tard.`;
 
   // La conversation démarre vide : le message de bienvenue n'apparaît qu'à
@@ -105,10 +130,11 @@ export default function ChatWidget({
 
   // Séquence d'entrée, calée sur l'apparition du cadre (~2000 ms après le
   // chargement de l'iframe) :
+  // Enchaînement volontairement serré (effet pro, quasi continu) :
   //   étape 1  0 ms      le cadre s'affiche vide (zoom, géré par widget.js)
   //   étape 2  +300 ms   le personnage se hisse (CSS .selvema-char, delay 2,3 s)
-  //   étape 3  +300 ms   l'accroche s'écrit lettre par lettre (→ 2600 ms)
-  //   étape 4  +300 ms   après la fin de l'accroche, la bulle de bienvenue
+  //   étape 3  +400 ms   l'accroche s'écrit lettre par lettre (→ 2700 ms)
+  //   étape 4  +400 ms   après la fin de l'accroche, la bulle de bienvenue
   //                      apparaît vide puis se remplit lettre par lettre
   useEffect(() => {
     const timers: ReturnType<typeof setTimeout>[] = [];
@@ -129,7 +155,7 @@ export default function ChatWidget({
           if (tagIv) clearInterval(tagIv);
           setTyping(false);
 
-          // étape 4 — 300 ms après l'accroche : bulle vide, puis frappe
+          // étape 4 — 400 ms après l'accroche : bulle vide, puis frappe
           timers.push(
             setTimeout(() => {
               // bulle vide en tête de conversation
@@ -154,12 +180,12 @@ export default function ChatWidget({
                     if (msgIv) clearInterval(msgIv);
                     setGreetingTyping(false);
                   }, 22);
-                }, 260)
+                }, 180)
               );
-            }, 300)
+            }, 400)
           );
         }, 50);
-      }, 2600)
+      }, 2700)
     );
 
     return () => {
@@ -219,10 +245,16 @@ export default function ChatWidget({
   const shown1 = nl === -1 ? typed : typed.slice(0, nl);
   const shown2 = nl === -1 ? "" : typed.slice(nl + 1);
 
+  // Variables CSS du widget, injectées sur la racine (issues des couleurs du
+  // client via /api/widget/[id] → props de cette page).
   const rootStyle = {
-    background: DARK_BG,
+    background: "var(--sv-bg)",
     color: "#fff",
-    ["--sv-accent" as string]: accent,
+    ["--sv-border" as string]: border,
+    ["--sv-bg" as string]: bg,
+    ["--sv-bubble" as string]: bubble,
+    ["--sv-tagline" as string]: taglineCol,
+    ["--sv-top-bg" as string]: topBg,
   } as CSSProperties;
 
   return (
@@ -231,10 +263,10 @@ export default function ChatWidget({
       style={rootStyle}
     >
       {/* ── ZONE HAUTE (20 %) — personnage + accroche ─────────────────── */}
-      {/* Fond noir pur pour se fondre avec le fond du PNG du personnage. */}
+      {/* Fond configurable par client (--sv-top-bg, noir #000000 par défaut). */}
       <div
         className="relative shrink-0 overflow-hidden"
-        style={{ flexBasis: "20%", minHeight: 96, background: "#000000" }}
+        style={{ flexBasis: "20%", minHeight: 96, background: "var(--sv-top-bg)" }}
       >
         {/* Personnage (image PNG) : occupe toute la hauteur de la zone, calé à
             gauche ; le bas déborde et est coupé par l'overflow de la zone.
@@ -267,7 +299,7 @@ export default function ChatWidget({
               fontWeight: 700,
               lineHeight: 1.12,
               letterSpacing: "-0.01em",
-              color: "#fff",
+              color: "var(--sv-tagline)",
             }}
           >
             {shown1}
@@ -283,7 +315,7 @@ export default function ChatWidget({
                 fontWeight: 800,
                 lineHeight: 1.1,
                 letterSpacing: "-0.02em",
-                color: "#fff",
+                color: "var(--sv-tagline)",
               }}
             >
               {shown2}
@@ -308,20 +340,20 @@ export default function ChatWidget({
         </button>
       </div>
 
-      {/* ── Ligne de séparation (couleur principale) — le « mur » ─────── */}
+      {/* ── Ligne de séparation (couleur des contours) — le « mur » ───── */}
       <div
         className="shrink-0"
         style={{
           height: 2,
-          background: accent,
-          boxShadow: `0 0 8px ${accent}`,
+          background: "var(--sv-border)",
+          boxShadow: `0 0 8px ${border}`,
         }}
       />
 
       {/* ── ZONE BASSE (80 %) — conversation + saisie ─────────────────── */}
       <div
         className="flex min-h-0 flex-1 flex-col"
-        style={{ background: DARK_BG }}
+        style={{ background: "var(--sv-bg)" }}
       >
         <div
           ref={scrollRef}
@@ -340,7 +372,7 @@ export default function ChatWidget({
                   style={
                     m.role === "user"
                       ? { backgroundColor: "rgba(255,255,255,0.1)", color: "#fff" }
-                      : { backgroundColor: accent, color: "#fff" }
+                      : { backgroundColor: "var(--sv-bubble)", color: "#fff" }
                   }
                 >
                   {m.content}
@@ -353,7 +385,7 @@ export default function ChatWidget({
             <div className="flex justify-start">
               <div
                 className="flex gap-1 rounded-2xl px-4 py-3"
-                style={{ backgroundColor: hexToRgba(accent, 0.9) }}
+                style={{ backgroundColor: hexToRgba(bubble, 0.9) }}
               >
                 {[0, 1, 2].map((d) => (
                   <span
@@ -374,7 +406,7 @@ export default function ChatWidget({
             flexBasis: "20%",
             minHeight: 58,
             maxHeight: 100,
-            borderTop: `1px solid ${hexToRgba(accent, 0.3)}`,
+            borderTop: `1px solid ${hexToRgba(border, 0.3)}`,
           }}
         >
           <textarea
@@ -382,9 +414,9 @@ export default function ChatWidget({
             value={input}
             disabled={!ready}
             onChange={(e) => setInput(e.target.value)}
-            onFocus={(e) => (e.currentTarget.style.borderColor = accent)}
+            onFocus={(e) => (e.currentTarget.style.borderColor = border)}
             onBlur={(e) =>
-              (e.currentTarget.style.borderColor = hexToRgba(accent, 0.5))
+              (e.currentTarget.style.borderColor = hexToRgba(border, 0.5))
             }
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
@@ -395,8 +427,8 @@ export default function ChatWidget({
             placeholder={ready ? "Posez votre question…" : "Indisponible"}
             className="h-9 max-h-[72px] flex-1 resize-none rounded-lg px-3 py-2 text-[13px] text-white placeholder:text-white/40 outline-none transition-colors"
             style={{
-              background: "#050510",
-              border: `1px solid ${hexToRgba(accent, 0.5)}`,
+              background: hexToRgba(bg, 0.6),
+              border: `1px solid ${hexToRgba(border, 0.5)}`,
             }}
           />
           <button
@@ -407,7 +439,7 @@ export default function ChatWidget({
             aria-label="Envoyer"
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white transition-colors disabled:opacity-40"
             style={{
-              backgroundColor: sendHover ? hexToRgba(accent, 0.85) : accent,
+              backgroundColor: sendHover ? hexToRgba(border, 0.85) : border,
             }}
           >
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none">

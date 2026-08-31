@@ -8,9 +8,18 @@ const field = (b: Record<string, unknown>, k: string) =>
   typeof b[k] === "string" ? (b[k] as string).trim() : "";
 
 const DEFAULT_TAGLINE = "Une question ? Je suis là pour vous aider.";
-const DEFAULT_COLOR = "#882de1";
-const normColor = (v: string) =>
-  /^#[0-9a-fA-F]{6}$/.test(v) ? v.toLowerCase() : DEFAULT_COLOR;
+
+// Couleurs du widget — valeurs par défaut cohérentes avec le design actuel.
+const DEFAULT_COLORS = {
+  widget_color: "#882de1", //     contours
+  background_color: "#0a0a1a", //  fond zone conversation
+  bubble_color: "#882de1", //     bulles assistant
+  tagline_color: "#ffffff", //    texte accroche
+  top_bg_color: "#000000", //     fond zone haute personnage (20 %)
+} as const;
+
+const normColor = (v: string, fallback: string) =>
+  /^#[0-9a-fA-F]{6}$/.test(v) ? v.toLowerCase() : fallback;
 
 export async function GET(
   _request: Request,
@@ -61,7 +70,11 @@ export async function PATCH(
   const site_url = field(body, "site_url");
   const chatbot_config = field(body, "chatbot_config");
   const tagline = field(body, "tagline") || DEFAULT_TAGLINE;
-  const widget_color = normColor(field(body, "widget_color"));
+  const widget_color = normColor(field(body, "widget_color"), DEFAULT_COLORS.widget_color);
+  const background_color = normColor(field(body, "background_color"), DEFAULT_COLORS.background_color);
+  const bubble_color = normColor(field(body, "bubble_color"), DEFAULT_COLORS.bubble_color);
+  const tagline_color = normColor(field(body, "tagline_color"), DEFAULT_COLORS.tagline_color);
+  const top_bg_color = normColor(field(body, "top_bg_color"), DEFAULT_COLORS.top_bg_color);
   const active = body.active !== false;
 
   try {
@@ -75,6 +88,10 @@ export async function PATCH(
         chatbot_config = ${chatbot_config},
         tagline = ${tagline},
         widget_color = ${widget_color},
+        background_color = ${background_color},
+        bubble_color = ${bubble_color},
+        tagline_color = ${tagline_color},
+        top_bg_color = ${top_bg_color},
         active = ${active},
         updated_at = now()
       where id = ${params.id}

@@ -4,10 +4,14 @@
  *   <script src="https://VOTRE-DOMAINE/widget.js" data-selvema-client="ID" async></script>
  *
  * Comportement :
- *  - après ~2,5 s, la fenêtre surgit (zoom scale 0.5→1, 400ms ease-out) ; elle
+ *  - AVANT l'animation : le cadre est 100 % invisible — visibility:hidden +
+ *    opacity:0 + pointer-events:none ET aucun style peignable (ni bordure, ni
+ *    ombre, ni fond, ni lueur, ni poignée). Ces styles ne sont posés qu'au
+ *    tout début de showFrame(), en même temps que le zoom.
+ *  - après ~2 s, la fenêtre surgit (zoom scale 0.5→1, 400ms ease-out) ; elle
  *    signale alors à l'iframe (postMessage "selvema-frame-shown") pour lancer la
  *    séquence interne : le personnage monte, puis l'accroche s'écrit (machine à écrire)
- *  - le cadre flotte en boucle (translateY -12px ↔ 0, 2 s, ease-in-out)
+ *  - le cadre flotte alors en boucle (translateY -12px ↔ 0, 2 s, ease-in-out)
  *  - ancré en bas à droite : redimensionnable (CSS resize:both) entre 280×380 et
  *    500×700, sans sortir de l'écran
  *  - le bouton × le réduit en une barre compacte (accroche seule) ; un clic le rouvre
@@ -47,7 +51,8 @@
   }
 
   var Z = 2147483000;
-  var ACCENT = "#882de1";
+  var ACCENT = "#882de1"; // couleur des contours du client
+  var BG = "#0a0a1a"; //     fond de la carte du client
   var TAGLINE = "Une question ? Je suis là pour vous aider.";
   var collapsed = false;
 
@@ -88,6 +93,18 @@
     ".selvema-frame-inner{transition:none !important}}";
   document.head.appendChild(style);
 
+  // ── AVANT L'ANIMATION : les 3 éléments (outer, inner, iframe) n'ont AUCUN
+  //    élément peignable. On l'impose explicitement sur chacun, dès leur
+  //    création : border:none + box-shadow:none + outline:none +
+  //    background:transparent. Rien ne peut donc laisser de contour avant que
+  //    showFrame() ne (re)pose bordure / fond / ombre, en même temps que le zoom.
+  function killPaint(el) {
+    el.style.border = "none";
+    el.style.boxShadow = "none";
+    el.style.outline = "none";
+    el.style.background = "transparent";
+  }
+
   // ---- Fenêtre : externe = position + flottaison + redimensionnement,
   //               interne = carte + zoom d'entrée
   var outer = document.createElement("div");
@@ -105,20 +122,19 @@
     "max-height:min(700px, calc(100vh - 40px))",
     "border-radius:16px",
     "overflow:hidden",
-    // Au chargement : cadre TOTALEMENT invisible pendant les 2 premières
-    // secondes. visibility:hidden + opacity:0 + pointer-events:none → aucune
-    // carte, aucune bordure, aucune ombre, aucune lueur, aucune poignée de
-    // redimensionnement. Rendu visible uniquement par showFrame (animation
-    // d'entrée), remasqué par collapse.
+    // invisible + non peignable + non cliquable pendant les 2 premières s.
+    // visibility:hidden (et PAS display:none) → l'iframe reste « chaude » et la
+    // séquence interne reste synchro.
     "visibility:hidden",
     "opacity:0",
+    "background:transparent",
+    "border:none",
+    "box-shadow:none",
+    "outline:none",
     "transition:opacity .3s ease",
     "resize:none",
-    "box-shadow:none",
-    "border:0",
     "z-index:" + Z,
     "pointer-events:none",
-    "animation:selvema-float 2s ease-in-out infinite",
   ].join(";");
 
   var inner = document.createElement("div");
@@ -128,8 +144,11 @@
     "height:100%",
     "border-radius:16px",
     "overflow:hidden",
-    "background:#000",
-    "border:1px solid " + ACCENT,
+    // rien de peignable avant showFrame
+    "background:transparent",
+    "border:none",
+    "box-shadow:none",
+    "outline:none",
     "opacity:0",
     "transform:scale(0.5)",
     "transform-origin:100% 100%",
@@ -140,8 +159,16 @@
   iframe.src = ORIGIN + "/embed?c=" + encodeURIComponent(CLIENT_ID);
   iframe.title = "Assistant en ligne";
   iframe.setAttribute("allow", "clipboard-write");
+  iframe.setAttribute("frameborder", "0"); // vieux navigateurs
   iframe.style.cssText =
-    "width:100%;height:100%;border:0;background:transparent;display:block";
+    "width:100%;height:100%;display:block;" +
+    "border:none;box-shadow:none;outline:none;background:transparent";
+
+  // Ré-assertion explicite, élément par élément (ceinture + bretelles).
+  killPaint(outer);
+  killPaint(inner);
+  killPaint(iframe);
+
   inner.appendChild(iframe);
   outer.appendChild(inner);
 
@@ -208,10 +235,15 @@
   function showFrame() {
     collapsed = false;
     hideBar();
-    // Le cadre devient visible ici — jamais avant.
+    // ── Le cadre devient visible ICI, jamais avant. C'est le SEUL endroit où
+    //    l'on pose la bordure, le fond, l'ombre et la flottaison : ainsi rien
+    //    n'a pu apparaître pendant les 2 s précédentes.
+    inner.style.border = "1px solid " + ACCENT;
+    inner.style.background = BG;
+    outer.style.boxShadow = boxShadow();
+    outer.style.animation = "selvema-float 2s ease-in-out infinite";
     outer.style.visibility = "visible";
     outer.style.pointerEvents = "auto";
-    outer.style.boxShadow = boxShadow();
     outer.style.resize = "both";
     // reflow avant de lancer l'opacité/zoom pour que la transition joue
     void outer.offsetWidth;
@@ -231,11 +263,14 @@
     collapsed = true;
     inner.style.opacity = "0";
     inner.style.transform = "scale(0.5)";
-    // cadre entièrement invisible en état réduit — aucune trace
+    // cadre entièrement invisible en état réduit — on retire TOUT ce qui peint
+    inner.style.border = "0";
+    inner.style.background = "transparent";
     outer.style.opacity = "0";
     outer.style.visibility = "hidden";
     outer.style.pointerEvents = "none";
     outer.style.boxShadow = "none";
+    outer.style.animation = "none";
     outer.style.resize = "none";
     setTimeout(showBar, 180);
   }
@@ -244,13 +279,25 @@
     showFrame();
   });
 
+  // color = couleur des CONTOURS du client (bordure du cadre + lueur).
+  // On ne « peint » rien tant que le cadre n'est pas affiché : la valeur est
+  // mémorisée, showFrame() l'appliquera.
   function applyAccent(color) {
     if (!color) return;
     ACCENT = color;
-    inner.style.borderColor = ACCENT;
-    // n'ajoute la lueur au cadre que s'il est réellement affiché
     if (!collapsed && outer.style.visibility === "visible") {
+      inner.style.border = "1px solid " + ACCENT;
       outer.style.boxShadow = boxShadow();
+    }
+  }
+
+  // Fond de la carte (mémorisé, appliqué par showFrame) — évite un flash si le
+  // client a choisi un autre fond de zone de conversation.
+  function applyBackground(color) {
+    if (!color) return;
+    BG = color;
+    if (!collapsed && outer.style.visibility === "visible") {
+      inner.style.background = BG;
     }
   }
 
@@ -272,6 +319,7 @@
         .then(function (meta) {
           if (!meta) return;
           if (meta.widget_color) applyAccent(meta.widget_color);
+          if (meta.background_color) applyBackground(meta.background_color);
           if (meta.tagline) {
             TAGLINE = meta.tagline;
             barText.textContent = TAGLINE;

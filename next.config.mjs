@@ -15,9 +15,10 @@ const nextConfig = {
         source: "/widget.js",
         headers: [
           { key: "Access-Control-Allow-Origin", value: "*" },
-          // Toujours revalider côté navigateur (renvoie 304 si inchangé) : le
-          // widget.js à jour est servi dès qu'il change. Le CDN peut cacher.
-          { key: "Cache-Control", value: "no-cache, s-maxage=600" },
+          // no-store : le navigateur NE garde JAMAIS widget.js en cache → toute
+          // correction est prise en compte au rechargement suivant, sans hard
+          // refresh. (s-maxage laisse quand même un CDN mutualiser.)
+          { key: "Cache-Control", value: "no-store, must-revalidate, s-maxage=300" },
         ],
       },
       {

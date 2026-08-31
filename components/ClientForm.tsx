@@ -12,12 +12,24 @@ export type ClientFields = {
   site_url: string;
   chatbot_config: string;
   tagline: string;
-  widget_color: string;
+  // Couleurs du widget.
+  widget_color: string; //     contours
+  background_color: string; //  fond de la zone de conversation (80 %)
+  bubble_color: string; //      fond des bulles de l'assistant
+  tagline_color: string; //     couleur du texte de l'accroche
+  top_bg_color: string; //      fond de la zone haute personnage (20 %)
   active: boolean;
 };
 
 const DEFAULT_TAGLINE = "Une question ? Je suis là pour vous aider.";
-const DEFAULT_COLOR = "#882de1";
+
+const DEFAULT_COLORS = {
+  widget_color: "#882de1",
+  background_color: "#0a0a1a",
+  bubble_color: "#882de1",
+  tagline_color: "#ffffff",
+  top_bg_color: "#000000",
+} as const;
 
 const EMPTY: ClientFields = {
   agency_name: "",
@@ -26,7 +38,7 @@ const EMPTY: ClientFields = {
   site_url: "",
   chatbot_config: "",
   tagline: DEFAULT_TAGLINE,
-  widget_color: DEFAULT_COLOR,
+  ...DEFAULT_COLORS,
   active: true,
 };
 
@@ -152,10 +164,6 @@ export default function ClientForm({
     );
   }
 
-  const colorValue = HEX.test(state.widget_color)
-    ? state.widget_color
-    : DEFAULT_COLOR;
-
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Coordonnées */}
@@ -275,32 +283,44 @@ export default function ClientForm({
             placeholder={DEFAULT_TAGLINE}
           />
         </Field>
-        <Field
-          label="Couleur principale du widget"
-          hint="Zone haute, ligne de séparation, personnage, messages de l'assistant, bouton d'envoi."
-        >
-          <div className="flex items-center gap-3">
-            <input
-              type="color"
-              value={colorValue}
-              onChange={(e) => set("widget_color", e.target.value)}
-              className="h-10 w-14 cursor-pointer rounded-lg border border-[#882de1]/50 bg-black p-1"
-              aria-label="Sélecteur de couleur principale"
-            />
-            <input
-              className="field max-w-[160px] font-mono"
-              value={state.widget_color}
-              onChange={(e) => set("widget_color", e.target.value)}
-              placeholder={DEFAULT_COLOR}
-            />
-            <span
-              className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold text-white"
-              style={{ backgroundColor: colorValue }}
-            >
-              Aperçu
-            </span>
-          </div>
-        </Field>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <ColorField
+            label="Couleur des contours"
+            hint="Tous les bords et bordures : ligne de séparation, champ de saisie, bouton d'envoi."
+            value={state.widget_color}
+            fallback={DEFAULT_COLORS.widget_color}
+            onChange={(v) => set("widget_color", v)}
+          />
+          <ColorField
+            label="Fond de la zone de conversation"
+            hint="Les 80 % du bas où défilent les messages."
+            value={state.background_color}
+            fallback={DEFAULT_COLORS.background_color}
+            onChange={(v) => set("background_color", v)}
+          />
+          <ColorField
+            label="Bulles de messages de l'IA"
+            hint="Fond des bulles de l'assistant. Le texte reste blanc."
+            value={state.bubble_color}
+            fallback={DEFAULT_COLORS.bubble_color}
+            onChange={(v) => set("bubble_color", v)}
+          />
+          <ColorField
+            label="Couleur de la phrase d'accroche"
+            hint="Texte de l'accroche dans la zone du haut."
+            value={state.tagline_color}
+            fallback={DEFAULT_COLORS.tagline_color}
+            onChange={(v) => set("tagline_color", v)}
+          />
+          <ColorField
+            label="Fond de la zone personnage (20 %)"
+            hint="Fond de la bande du haut où se trouve Bitoubi. Noir par défaut."
+            value={state.top_bg_color}
+            fallback={DEFAULT_COLORS.top_bg_color}
+            onChange={(v) => set("top_bg_color", v)}
+          />
+        </div>
       </section>
 
       {error && <p className="text-sm text-red-400">{error}</p>}
@@ -333,5 +353,47 @@ function Field({
       {hint && <span className="mb-2 block text-xs text-white/40">{hint}</span>}
       {children}
     </label>
+  );
+}
+
+/** Sélecteur de couleur : pastille native + champ hexadécimal + aperçu. */
+function ColorField({
+  label,
+  hint,
+  value,
+  fallback,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  value: string;
+  fallback: string;
+  onChange: (v: string) => void;
+}) {
+  const safe = HEX.test(value) ? value : fallback;
+  return (
+    <Field label={label} hint={hint}>
+      <div className="flex items-center gap-3">
+        <input
+          type="color"
+          value={safe}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-10 w-14 shrink-0 cursor-pointer rounded-lg border border-[#882de1]/50 bg-black p-1"
+          aria-label={`Sélecteur — ${label}`}
+        />
+        <input
+          className="field max-w-[140px] font-mono"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={fallback}
+        />
+        <span
+          className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold text-white ring-1 ring-white/20"
+          style={{ backgroundColor: safe }}
+        >
+          Aperçu
+        </span>
+      </div>
+    </Field>
   );
 }

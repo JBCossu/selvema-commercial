@@ -53,6 +53,10 @@ export default async function EditClientPage({
               chatbot_config: client.chatbot_config,
               tagline: client.tagline,
               widget_color: client.widget_color,
+              background_color: client.background_color,
+              bubble_color: client.bubble_color,
+              tagline_color: client.tagline_color,
+              top_bg_color: client.top_bg_color,
               active: client.active,
             }}
           />
