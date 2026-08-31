@@ -21,8 +21,13 @@ yarn-error.log*
 /logs
 .dev.pid
 
-# local env files
+# env files — .env ne doit contenir que des valeurs non sensibles ;
+# par sécurité on ignore aussi tout .env* réel (seul .env.local.example est suivi)
+.env
+.env.local
 .env*.local
+.env.development
+.env.production
 
 # vercel
 .vercel
