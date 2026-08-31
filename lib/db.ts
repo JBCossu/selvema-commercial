@@ -9,15 +9,18 @@ export function getDb() {
   });
 }
 
-export type AgencyConfig = {
-  id: number;
+export type Client = {
+  id: string;
+  created_at: string;
+  updated_at: string;
   agency_name: string;
   owner_email: string;
   owner_phone: string;
-  description: string;
-  faq: string;
-  properties: string;
-  updated_at: string;
+  active: boolean;
+  site_url: string;
+  chatbot_config: string; // prompt "base de connaissances" propre au client
+  tagline: string;
+  widget_color: string;
 };
 
 export type ChatMessage = {
@@ -25,10 +28,11 @@ export type ChatMessage = {
   content: string;
 };
 
-export type Prospect = {
+export type Lead = {
   id: string;
-  created_at: string;
+  client_id: string;
   conversation_id: string | null;
+  created_at: string;
   name: string | null;
   email: string | null;
   phone: string | null;
@@ -46,18 +50,39 @@ export type Prospect = {
   last_followup_at: string | null;
 };
 
-export async function getConfig(): Promise<AgencyConfig | null> {
+/** Ligne enrichie pour les cards du dashboard. */
+export type ClientOverview = Client & {
+  leads_this_month: number;
+  leads_total: number;
+  last_activity: string;
+};
+
+export async function getClient(id: string): Promise<Client | null> {
   const sql = getDb();
-  const rows =
-    (await sql`select * from config where id = 1`) as AgencyConfig[];
+  const rows = (await sql`select * from clients where id = ${id}`) as Client[];
   return rows[0] ?? null;
 }
 
-export function isConfigReady(config: AgencyConfig | null): config is AgencyConfig {
-  return Boolean(
-    config &&
-      config.agency_name.trim() &&
-      config.owner_email.trim() &&
-      config.description.trim()
-  );
+export async function listClientOverviews(): Promise<ClientOverview[]> {
+  const sql = getDb();
+  return (await sql`
+    select
+      c.*,
+      (select count(*)::int from leads l
+         where l.client_id = c.id
+           and l.created_at >= date_trunc('month', now())) as leads_this_month,
+      (select count(*)::int from leads l where l.client_id = c.id) as leads_total,
+      greatest(
+        c.updated_at,
+        coalesce((select max(created_at) from leads l where l.client_id = c.id), c.created_at),
+        coalesce((select max(updated_at) from conversations cv where cv.client_id = c.id), c.created_at)
+      ) as last_activity
+    from clients c
+    order by c.active desc, last_activity desc
+  `) as ClientOverview[];
+}
+
+/** L'assistant d'un client ne répond que s'il est actif et a une base de connaissances. */
+export function clientReady(client: Client | null): client is Client {
+  return Boolean(client && client.active && client.chatbot_config.trim());
 }

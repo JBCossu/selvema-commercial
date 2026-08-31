@@ -11,10 +11,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Requête invalide." }, { status: 400 });
   }
 
-  const expected = process.env.APP_PASSWORD;
+  const expected = process.env.ADMIN_PASSWORD;
   if (!expected) {
     return NextResponse.json(
-      { error: "APP_PASSWORD n'est pas configuré sur le serveur." },
+      { error: "ADMIN_PASSWORD n'est pas configuré sur le serveur." },
       { status: 500 }
     );
   }

@@ -1,12 +1,13 @@
-// Session signée (HMAC) stockée dans un cookie, sans dépendance externe.
-// Protège /config et /dashboard via un simple mot de passe (APP_PASSWORD).
+// Session admin signée (HMAC) stockée dans un cookie, sans dépendance externe.
+// Protège le back-office (dashboard, fiches clients) via le mot de passe
+// administrateur de Jean Baptiste (ADMIN_PASSWORD).
 
 const encoder = new TextEncoder();
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
-export const SESSION_COOKIE = "selvema_commercial_session";
+export const SESSION_COOKIE = "selvema_admin_session";
 
 async function getKey() {
-  const secret = `selvema-commercial:${process.env.APP_PASSWORD ?? ""}`;
+  const secret = `selvema-commercial-admin:${process.env.ADMIN_PASSWORD ?? ""}`;
   return crypto.subtle.importKey(
     "raw",
     encoder.encode(secret),

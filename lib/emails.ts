@@ -1,14 +1,23 @@
-import type { AgencyConfig, Prospect } from "./db";
+import type { Client, Lead } from "./db";
 import { APP_URL } from "./resend";
+
+export type MailClient = Pick<
+  Client,
+  "id" | "agency_name" | "owner_email" | "owner_phone"
+>;
 
 const WRAP = (inner: string) => `
 <div style="background:#0b0b12;padding:32px 0;font-family:Inter,Segoe UI,Arial,sans-serif;">
   <div style="max-width:560px;margin:0 auto;background:#000;border:1px solid #882de1;border-radius:16px;padding:28px 30px;color:#fff;">
     <div style="font-size:18px;font-weight:700;letter-spacing:-0.02em;color:#fff;margin-bottom:4px;">Selvema</div>
     ${inner}
-    <p style="margin-top:28px;font-size:12px;color:#8b8b9a;">Assistant commercial Selvema · <a style="color:#c39bf0;" href="${APP_URL}/dashboard">Tableau de bord</a></p>
+    <p style="margin-top:28px;font-size:12px;color:#8b8b9a;">Assistant commercial Selvema · <a style="color:#c39bf0;" href="${APP_URL}/client/${"__CLIENT_ID__"}">Fiche client</a></p>
   </div>
 </div>`;
+
+function wrap(inner: string, clientId: string) {
+  return WRAP(inner).replace("__CLIENT_ID__", clientId);
+}
 
 const row = (label: string, value: string | null | undefined) =>
   value && String(value).trim()
@@ -26,11 +35,11 @@ export function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
-/** Fiche prospect qualifiée envoyée au dirigeant. */
-export function prospectEmail(agency: AgencyConfig, p: Prospect) {
+/** Fiche prospect qualifiée envoyée au dirigeant du client. */
+export function prospectEmail(client: MailClient, p: Lead) {
   const inner = `
     <h1 style="font-size:20px;margin:12px 0 4px;color:#fff;">Nouveau prospect qualifié</h1>
-    <p style="color:#c9c9d4;font-size:14px;margin:0 0 18px;">Recueilli par l'assistant en ligne de ${escapeHtml(agency.agency_name)}.</p>
+    <p style="color:#c9c9d4;font-size:14px;margin:0 0 18px;">Recueilli par l'assistant en ligne de ${escapeHtml(client.agency_name)}.</p>
     ${p.summary ? `<p style="background:#12121c;border-left:3px solid #882de1;padding:12px 14px;border-radius:8px;color:#e6e6ef;font-size:14px;margin:0 0 18px;">${escapeHtml(p.summary)}</p>` : ""}
     <table style="border-collapse:collapse;width:100%;">
       ${row("Projet", p.project_type)}
@@ -47,15 +56,15 @@ export function prospectEmail(agency: AgencyConfig, p: Prospect) {
     </table>`;
   return {
     subject: `Nouveau prospect${p.name ? " — " + p.name : ""}${p.project_type ? " (" + p.project_type + ")" : ""}`,
-    html: WRAP(inner),
+    html: wrap(inner, client.id),
   };
 }
 
 /** Demande de rappel (question hors base de connaissances) envoyée au dirigeant. */
-export function callbackEmail(agency: AgencyConfig, p: Prospect) {
+export function callbackEmail(client: MailClient, p: Lead) {
   const inner = `
     <h1 style="font-size:20px;margin:12px 0 4px;color:#fff;">Demande de rappel</h1>
-    <p style="color:#c9c9d4;font-size:14px;margin:0 0 18px;">Un visiteur de ${escapeHtml(agency.agency_name)} a une question qui sort du périmètre de l'assistant.</p>
+    <p style="color:#c9c9d4;font-size:14px;margin:0 0 18px;">Un visiteur de ${escapeHtml(client.agency_name)} a une question qui sort du périmètre de l'assistant.</p>
     ${p.summary ? `<p style="background:#12121c;border-left:3px solid #882de1;padding:12px 14px;border-radius:8px;color:#e6e6ef;font-size:14px;margin:0 0 18px;">${escapeHtml(p.summary)}</p>` : ""}
     <table style="border-collapse:collapse;width:100%;">
       ${row("Nom", p.name)}
@@ -65,12 +74,12 @@ export function callbackEmail(agency: AgencyConfig, p: Prospect) {
     </table>`;
   return {
     subject: `Demande de rappel${p.name ? " — " + p.name : ""}`,
-    html: WRAP(inner),
+    html: wrap(inner, client.id),
   };
 }
 
 /** Relance J+3 / J+7 envoyée au prospect, au nom de l'agence. */
-export function followUpEmail(agency: AgencyConfig, p: Prospect, step: 3 | 7) {
+export function followUpEmail(client: MailClient, p: Lead, step: 3 | 7) {
   const hi = p.name ? `Bonjour ${escapeHtml(p.name.split(" ")[0])},` : "Bonjour,";
   const body =
     step === 3
@@ -81,23 +90,23 @@ export function followUpEmail(agency: AgencyConfig, p: Prospect, step: 3 | 7) {
          <p style="color:#e6e6ef;font-size:14px;line-height:1.6;">Je reviens vers vous une dernière fois concernant votre projet${p.location ? " sur " + escapeHtml(p.location) : ""}. Si le moment n'est pas idéal, aucun souci — dites-nous simplement quand vous recontacter.</p>
          <p style="color:#e6e6ef;font-size:14px;line-height:1.6;">Nous restons à votre disposition dès que vous le souhaitez.</p>`;
   const inner = `
-    <h1 style="font-size:19px;margin:12px 0 12px;color:#fff;">${escapeHtml(agency.agency_name)}</h1>
+    <h1 style="font-size:19px;margin:12px 0 12px;color:#fff;">${escapeHtml(client.agency_name)}</h1>
     ${body}
-    <p style="color:#e6e6ef;font-size:14px;line-height:1.6;margin-top:18px;">Bien à vous,<br/>L'équipe ${escapeHtml(agency.agency_name)}${agency.owner_phone ? "<br/>" + escapeHtml(agency.owner_phone) : ""}</p>`;
+    <p style="color:#e6e6ef;font-size:14px;line-height:1.6;margin-top:18px;">Bien à vous,<br/>L'équipe ${escapeHtml(client.agency_name)}${client.owner_phone ? "<br/>" + escapeHtml(client.owner_phone) : ""}</p>`;
   return {
     subject:
       step === 3
-        ? `Votre projet immobilier — ${agency.agency_name}`
-        : `On reste disponible pour votre projet — ${agency.agency_name}`,
-    html: WRAP(inner),
+        ? `Votre projet immobilier — ${client.agency_name}`
+        : `On reste disponible pour votre projet — ${client.agency_name}`,
+    html: wrap(inner, client.id),
   };
 }
 
 /** Notification au dirigeant : une relance vient de partir. */
-export function followUpNotice(agency: AgencyConfig, p: Prospect, step: 3 | 7) {
+export function followUpNotice(client: MailClient, p: Lead, step: 3 | 7) {
   const inner = `
     <h1 style="font-size:19px;margin:12px 0 4px;color:#fff;">Relance J+${step} envoyée</h1>
-    <p style="color:#c9c9d4;font-size:14px;margin:0 0 16px;">Une relance automatique vient d'être envoyée à ce prospect au nom de ${escapeHtml(agency.agency_name)}.</p>
+    <p style="color:#c9c9d4;font-size:14px;margin:0 0 16px;">Une relance automatique vient d'être envoyée à ce prospect au nom de ${escapeHtml(client.agency_name)}.</p>
     <table style="border-collapse:collapse;width:100%;">
       ${row("Nom", p.name)}
       ${row("Email", p.email)}
@@ -107,6 +116,6 @@ export function followUpNotice(agency: AgencyConfig, p: Prospect, step: 3 | 7) {
     </table>`;
   return {
     subject: `Relance J+${step} envoyée${p.name ? " — " + p.name : ""}`,
-    html: WRAP(inner),
+    html: wrap(inner, client.id),
   };
 }

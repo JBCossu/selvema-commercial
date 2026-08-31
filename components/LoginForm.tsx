@@ -25,7 +25,7 @@ export default function LoginForm() {
         const b = await res.json().catch(() => ({}));
         throw new Error(b.error || "Une erreur est survenue.");
       }
-      router.push(params.get("from") || "/config");
+      router.push(params.get("from") || "/dashboard");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Une erreur est survenue.");
@@ -38,12 +38,15 @@ export default function LoginForm() {
       onSubmit={handleSubmit}
       className="w-full max-w-sm rounded-2xl border border-[#882de1] bg-black p-8"
     >
-      <h1 className="text-center text-xl font-bold">Accès réservé</h1>
+      <h1 className="text-center text-xl font-bold">Espace administrateur</h1>
       <p className="mt-2 text-center text-sm text-white/50">
-        Configuration &amp; tableau de bord Selvema Commercial
+        Selvema Commercial — back-office
       </p>
 
-      <label htmlFor="password" className="mt-6 mb-2 block text-sm font-medium text-white/80">
+      <label
+        htmlFor="password"
+        className="mt-6 mb-2 block text-sm font-medium text-white/80"
+      >
         Mot de passe
       </label>
       <input

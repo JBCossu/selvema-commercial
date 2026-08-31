@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getDb, getConfig, isConfigReady } from "@/lib/db";
-import type { ChatMessage, Prospect } from "@/lib/db";
+import { getDb, getClient, clientReady } from "@/lib/db";
+import type { Client, ChatMessage, Lead } from "@/lib/db";
 import { runChat, type ToolCall } from "@/lib/anthropic";
 import { getResend, FROM_EMAIL } from "@/lib/resend";
 import { prospectEmail, callbackEmail } from "@/lib/emails";
@@ -18,11 +18,17 @@ function str(v: unknown): string | null {
 }
 
 export async function POST(request: Request) {
-  let body: { conversationId?: string; message?: string };
+  let body: { clientId?: string; conversationId?: string; message?: string };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Requête invalide." }, { status: 400 });
+  }
+
+  const clientId =
+    typeof body.clientId === "string" && body.clientId ? body.clientId : null;
+  if (!clientId) {
+    return NextResponse.json({ error: "clientId manquant." }, { status: 400 });
   }
 
   const message = (body.message ?? "").toString().slice(0, MAX_MESSAGE_LEN).trim();
@@ -34,22 +40,33 @@ export async function POST(request: Request) {
       ? body.conversationId
       : null;
 
-  const config = await getConfig();
-  if (!isConfigReady(config)) {
+  let client: Client | null;
+  try {
+    client = await getClient(clientId);
+  } catch (err) {
+    console.error("getClient error", err);
+    return NextResponse.json(
+      { error: "Service momentanément indisponible." },
+      { status: 502 }
+    );
+  }
+
+  if (!clientReady(client)) {
     return NextResponse.json({
       conversationId,
       reply:
-        "L'assistant en ligne est en cours de configuration. Merci de revenir un peu plus tard.",
+        "L'assistant en ligne n'est pas disponible pour le moment. Merci de revenir un peu plus tard.",
     });
   }
 
   const sql = getDb();
 
-  // Historique de la conversation
+  // Historique (scopé au client)
   let history: ChatMessage[] = [];
   if (conversationId) {
     const rows = (await sql`
-      select messages from conversations where id = ${conversationId}
+      select messages from conversations
+      where id = ${conversationId} and client_id = ${clientId}
     `) as { messages: ChatMessage[] }[];
     if (rows[0]?.messages) history = rows[0].messages.slice(-MAX_HISTORY);
   }
@@ -58,7 +75,7 @@ export async function POST(request: Request) {
   let reply: string;
   let toolCalls: ToolCall[] = [];
   try {
-    const result = await runChat(config, history, message);
+    const result = await runChat(client, history, message);
     reply = result.reply;
     toolCalls = result.toolCalls;
   } catch (err) {
@@ -87,21 +104,21 @@ export async function POST(request: Request) {
           updated_at = now(),
           qualified = qualified or ${qualified},
           callback_requested = callback_requested or ${callback}
-      where id = ${convId}
+      where id = ${convId} and client_id = ${clientId}
     `;
   } else {
     const rows = (await sql`
-      insert into conversations (messages, qualified, callback_requested)
-      values (${JSON.stringify(updated)}::jsonb, ${qualified}, ${callback})
+      insert into conversations (client_id, messages, qualified, callback_requested)
+      values (${clientId}, ${JSON.stringify(updated)}::jsonb, ${qualified}, ${callback})
       returning id
     `) as { id: string }[];
     convId = rows[0].id;
   }
 
-  // Traitement des outils : création de la fiche + email au dirigeant
+  // Traitement des outils : création du lead + email au dirigeant
   for (const call of toolCalls) {
     try {
-      await handleToolCall(sql, config, convId, call);
+      await handleToolCall(sql, client, convId, call);
     } catch (err) {
       console.error("tool handling error", call.name, err);
     }
@@ -112,7 +129,7 @@ export async function POST(request: Request) {
 
 async function handleToolCall(
   sql: ReturnType<typeof getDb>,
-  config: NonNullable<Awaited<ReturnType<typeof getConfig>>>,
+  client: Client,
   conversationId: string,
   call: ToolCall
 ) {
@@ -120,23 +137,22 @@ async function handleToolCall(
 
   if (call.name === "enregistrer_prospect") {
     const rows = (await sql`
-      insert into prospects
-        (conversation_id, name, email, phone, project_type, budget,
+      insert into leads
+        (client_id, conversation_id, name, email, phone, project_type, budget,
          property_type, location, timeline, situation, summary, kind, status)
       values
-        (${conversationId}, ${str(i.name)}, ${str(i.email)}, ${str(i.phone)},
-         ${str(i.project_type)}, ${str(i.budget)}, ${str(i.property_type)},
-         ${str(i.location)}, ${str(i.timeline)}, ${str(i.situation)},
-         ${str(i.summary)}, 'qualifie', 'nouveau')
+        (${client.id}, ${conversationId}, ${str(i.name)}, ${str(i.email)},
+         ${str(i.phone)}, ${str(i.project_type)}, ${str(i.budget)},
+         ${str(i.property_type)}, ${str(i.location)}, ${str(i.timeline)},
+         ${str(i.situation)}, ${str(i.summary)}, 'qualifie', 'nouveau')
       returning *
-    `) as Prospect[];
-    const prospect = rows[0];
+    `) as Lead[];
 
-    const { subject, html } = prospectEmail(config, prospect);
+    const { subject, html } = prospectEmail(client, rows[0]);
     await getResend().emails.send({
       from: FROM_EMAIL,
-      to: config.owner_email,
-      replyTo: prospect.email ?? undefined,
+      to: client.owner_email,
+      replyTo: rows[0].email ?? undefined,
       subject,
       html,
     });
@@ -145,20 +161,19 @@ async function handleToolCall(
 
   if (call.name === "demander_rappel") {
     const rows = (await sql`
-      insert into prospects
-        (conversation_id, name, email, phone, summary, kind, status)
+      insert into leads
+        (client_id, conversation_id, name, email, phone, summary, kind, status)
       values
-        (${conversationId}, ${str(i.name)}, ${str(i.email)}, ${str(i.phone)},
-         ${str(i.question)}, 'rappel', 'nouveau')
+        (${client.id}, ${conversationId}, ${str(i.name)}, ${str(i.email)},
+         ${str(i.phone)}, ${str(i.question)}, 'rappel', 'nouveau')
       returning *
-    `) as Prospect[];
-    const prospect = rows[0];
+    `) as Lead[];
 
-    const { subject, html } = callbackEmail(config, prospect);
+    const { subject, html } = callbackEmail(client, rows[0]);
     await getResend().emails.send({
       from: FROM_EMAIL,
-      to: config.owner_email,
-      replyTo: prospect.email ?? undefined,
+      to: client.owner_email,
+      replyTo: rows[0].email ?? undefined,
       subject,
       html,
     });

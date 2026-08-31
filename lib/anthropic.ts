@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { AgencyConfig, ChatMessage } from "./db";
-import { buildSystemPrompt, TOOLS } from "./knowledge";
+import type { Client, ChatMessage } from "./db";
+import { SYSTEM_PROMPT, knowledgeBasePrompt, TOOLS } from "./knowledge";
 
 // Modèle demandé pour le chatbot.
 export const CHAT_MODEL = "claude-sonnet-4-6";
@@ -27,12 +27,14 @@ const MAX_TURNS = 4;
 // Fait tourner la boucle conversationnelle (avec appels d'outils) et renvoie
 // le message final destiné au visiteur + les outils déclenchés.
 export async function runChat(
-  config: AgencyConfig,
+  client: Client,
   history: ChatMessage[],
   userMessage: string
 ): Promise<ChatResult> {
-  const client = getAnthropic();
-  const system = buildSystemPrompt(config);
+  const anthropic = getAnthropic();
+  // Les deux prompts sont combinés ici : le prompt système fixe d'abord,
+  // suivi de la base de connaissances propre au client.
+  const system = `${SYSTEM_PROMPT}\n\n${knowledgeBasePrompt(client)}`;
 
   const messages: Anthropic.MessageParam[] = [
     ...history.map((m) => ({ role: m.role, content: m.content })),
@@ -43,7 +45,7 @@ export async function runChat(
   let reply = "";
 
   for (let turn = 0; turn < MAX_TURNS; turn++) {
-    const response = await client.messages.create({
+    const response = await anthropic.messages.create({
       model: CHAT_MODEL,
       max_tokens: 1024,
       system,

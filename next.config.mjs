@@ -15,7 +15,17 @@ const nextConfig = {
         source: "/widget.js",
         headers: [
           { key: "Access-Control-Allow-Origin", value: "*" },
-          { key: "Cache-Control", value: "public, max-age=300, s-maxage=300" },
+          // Toujours revalider côté navigateur (renvoie 304 si inchangé) : le
+          // widget.js à jour est servi dès qu'il change. Le CDN peut cacher.
+          { key: "Cache-Control", value: "no-cache, s-maxage=600" },
+        ],
+      },
+      {
+        // Métadonnées publiques du widget, lues depuis le site du client.
+        source: "/api/widget/:path*",
+        headers: [
+          { key: "Access-Control-Allow-Origin", value: "*" },
+          { key: "Access-Control-Allow-Methods", value: "GET, OPTIONS" },
         ],
       },
     ];

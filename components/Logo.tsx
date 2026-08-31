@@ -11,8 +11,8 @@ export default function Logo() {
         height={44}
         className="h-11 w-11 object-contain"
       />
-      <span className="text-2xl font-bold tracking-tight text-white transition-colors duration-150 group-hover:text-[#c39bf0]">
-        Selvema
+      <span className="text-xl font-bold tracking-tight text-white transition-colors duration-150 group-hover:text-[#c39bf0] sm:text-2xl">
+        Selvema&nbsp;Commercial
       </span>
     </Link>
   );

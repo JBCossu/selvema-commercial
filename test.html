@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Agence Horizon Immobilier — Lyon</title>
+  <!--
+    PAGE DE TEST LOCALE — site client FICTIF pour essayer le widget Selvema Commercial.
+
+    1. Lancer le serveur :   ./start.sh   (ou npm run dev)  → http://localhost:3002
+    2. Ouvrir ce fichier dans le navigateur (double-clic, ou glisser-déposer dans un onglet).
+    3. Le widget apparaît en bas à droite. Cliquer dessus pour discuter avec l'assistant.
+
+    Ce fichier pointe vers le client de démonstration « Agence Horizon Immobilier »
+    (ID ci-dessous). Pour tester un autre client, remplacer la valeur de
+    data-selvema-client par l'ID affiché sur sa fiche dans /dashboard.
+
+    Si le serveur ne tourne pas sur le port 3002, adapter aussi l'URL du script.
+  -->
+  <style>
+    :root {
+      --brand: #1f6f5c;
+      --brand-dark: #164f42;
+      --ink: #1b2a27;
+      --muted: #5c6b66;
+      --line: #e2e8e5;
+      --bg: #f7f9f8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+      line-height: 1.6;
+    }
+    a { color: inherit; }
+    .testbar {
+      background: #fde68a;
+      color: #713f12;
+      font-size: 13px;
+      text-align: center;
+      padding: 6px 12px;
+      border-bottom: 1px solid #f5d572;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 18px 32px;
+      background: #fff;
+      border-bottom: 1px solid var(--line);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 20px;
+      letter-spacing: -0.01em;
+    }
+    .logo .mark {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      background: var(--brand);
+      color: #fff;
+      display: grid;
+      place-items: center;
+      font-size: 18px;
+    }
+    nav { display: flex; gap: 22px; font-size: 15px; color: var(--muted); }
+    nav a:hover { color: var(--brand); }
+    .hero {
+      padding: 72px 32px;
+      max-width: 1080px;
+      margin: 0 auto;
+      text-align: center;
+    }
+    .hero h1 {
+      font-size: clamp(28px, 4vw, 44px);
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+    }
+    .hero p {
+      margin-top: 16px;
+      font-size: 18px;
+      color: var(--muted);
+      max-width: 620px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .hero .cta {
+      display: inline-block;
+      margin-top: 28px;
+      background: var(--brand);
+      color: #fff;
+      text-decoration: none;
+      padding: 13px 26px;
+      border-radius: 999px;
+      font-weight: 600;
+    }
+    .hero .cta:hover { background: var(--brand-dark); }
+    section.block {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 48px 32px;
+    }
+    section.block h2 {
+      font-size: 24px;
+      letter-spacing: -0.01em;
+      margin-bottom: 22px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 20px;
+    }
+    .card {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+    .card .thumb {
+      height: 150px;
+      background: linear-gradient(135deg, #cfe6df, #a9d2c6);
+      display: grid;
+      place-items: center;
+      color: var(--brand-dark);
+      font-size: 30px;
+    }
+    .card .body { padding: 16px 18px; }
+    .card .price { font-weight: 700; color: var(--brand); }
+    .card .meta { font-size: 14px; color: var(--muted); margin-top: 4px; }
+    .services { columns: 2; column-gap: 32px; color: var(--muted); }
+    .services li { margin: 0 0 10px 18px; }
+    @media (max-width: 640px) { .services { columns: 1; } nav { display: none; } }
+    footer {
+      background: #fff;
+      border-top: 1px solid var(--line);
+      padding: 32px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+      margin-top: 24px;
+    }
+  </style>
+</head>
+<body>
+  <div class="testbar">
+    Page de test locale — site client <strong>fictif</strong> pour essayer le widget Selvema Commercial.
+  </div>
+
+  <header>
+    <div class="logo"><span class="mark">H</span> Agence Horizon Immobilier</div>
+    <nav>
+      <a href="#biens">Nos biens</a>
+      <a href="#services">Services</a>
+      <a href="#zones">Zones</a>
+      <a href="#contact">Contact</a>
+    </nav>
+  </header>
+
+  <div class="hero">
+    <h1>Votre projet immobilier à Lyon, entre de bonnes mains depuis 2012</h1>
+    <p>
+      Achat, vente, location, investissement locatif. Une équipe de 6 conseillers
+      qui connaît chaque quartier — de la Croix-Rousse aux Brotteaux.
+    </p>
+    <a class="cta" href="#contact">Estimer mon bien gratuitement</a>
+  </div>
+
+  <section class="block" id="biens">
+    <h2>Nos biens à la vente</h2>
+    <div class="grid">
+      <div class="card">
+        <div class="thumb">🏙️</div>
+        <div class="body">
+          <div class="price">295 000 €</div>
+          <div class="meta">T2 · 46 m² · Lyon 4e (Croix-Rousse)</div>
+          <div class="meta">Dernier étage, vue dégagée, cave.</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="thumb">🏛️</div>
+        <div class="body">
+          <div class="price">465 000 €</div>
+          <div class="meta">T3 · 68 m² · Lyon 6e (Brotteaux)</div>
+          <div class="meta">Immeuble haussmannien, 2 chambres, balcon.</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="thumb">🏢</div>
+        <div class="body">
+          <div class="price">380 000 €</div>
+          <div class="meta">T4 · 90 m² · Villeurbanne (Gratte-Ciel)</div>
+          <div class="meta">Refait à neuf, parking en sous-sol.</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="thumb">🏡</div>
+        <div class="body">
+          <div class="price">690 000 €</div>
+          <div class="meta">Maison · 120 m² · Caluire-et-Cuire</div>
+          <div class="meta">4 chambres, jardin 250 m², garage.</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="thumb">🔑</div>
+        <div class="body">
+          <div class="price">145 000 €</div>
+          <div class="meta">Studio · 24 m² · Lyon 7e (Guillotière)</div>
+          <div class="meta">Loué 520 €/mois — idéal investissement.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="services">
+    <h2>Nos services</h2>
+    <ul class="services">
+      <li>Vente de biens résidentiels (appartements, maisons)</li>
+      <li>Recherche de biens pour les acquéreurs</li>
+      <li>Location et gestion locative complète</li>
+      <li>Estimation gratuite de votre bien sous 48h</li>
+      <li>Accompagnement à l'investissement locatif</li>
+      <li>Conseil travaux et montage du dossier de financement</li>
+    </ul>
+  </section>
+
+  <section class="block" id="zones">
+    <h2>Où nous intervenons</h2>
+    <p style="color:var(--muted)">
+      Lyon du 1er au 9e arrondissement — forte présence sur la Croix-Rousse
+      (1er, 4e), les Brotteaux (6e) et Monplaisir (8e). Également Villeurbanne
+      et Caluire-et-Cuire.
+    </p>
+  </section>
+
+  <section class="block" id="contact">
+    <h2>Nous contacter</h2>
+    <p style="color:var(--muted)">
+      12 rue imaginaire, 69004 Lyon · 04 78 00 00 00 · contact@horizon-immo.example<br />
+      Du lundi au vendredi 9h–19h, samedi 9h–13h.
+    </p>
+    <p style="margin-top:12px;color:var(--muted)">
+      Une question rapide ? Utilisez l'assistant en bas à droite de cette page.
+    </p>
+  </section>
+
+  <footer>
+    Agence Horizon Immobilier — site fictif de démonstration. Aucune donnée réelle.
+  </footer>
+
+  <!-- ▼▼▼ Widget Selvema Commercial ▼▼▼ -->
+  <script
+    src="http://localhost:3002/widget.js"
+    data-selvema-client="0c54b42f-6d2d-48d7-8b50-0b1980836181"
+    async
+  ></script>
+  <!-- ▲▲▲ Widget Selvema Commercial ▲▲▲ -->
+</body>
+</html>

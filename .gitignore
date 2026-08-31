@@ -17,6 +17,10 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# start.sh
+/logs
+.dev.pid
+
 # local env files
 .env*.local
 

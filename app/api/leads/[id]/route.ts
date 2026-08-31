@@ -27,14 +27,14 @@ export async function PATCH(
 
   const sql = getDb();
   const rows = (await sql`
-    update prospects set status = ${body.status} where id = ${params.id}
+    update leads set status = ${body.status} where id = ${params.id}
     returning id, status
   `) as { id: string; status: string }[];
 
   if (!rows[0]) {
-    return NextResponse.json({ error: "Prospect introuvable." }, { status: 404 });
+    return NextResponse.json({ error: "Lead introuvable." }, { status: 404 });
   }
-  return NextResponse.json({ ok: true, prospect: rows[0] });
+  return NextResponse.json({ ok: true, lead: rows[0] });
 }
 
 export async function DELETE(
@@ -42,6 +42,6 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   const sql = getDb();
-  await sql`delete from prospects where id = ${params.id}`;
+  await sql`delete from leads where id = ${params.id}`;
   return NextResponse.json({ ok: true });
 }

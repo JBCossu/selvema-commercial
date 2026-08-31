@@ -2,13 +2,14 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/session";
 
-// Pages et API réservées à Selvema / au dirigeant.
+// Back-office réservé à Jean Baptiste. Le widget (/embed, /api/chat), le cron
+// et /widget.js restent publics.
 const PROTECTED = [
-  "/config",
   "/dashboard",
-  "/relances",
-  "/api/config",
-  "/api/prospects",
+  "/client",
+  "/clients",
+  "/api/clients",
+  "/api/leads",
 ];
 
 export async function middleware(request: NextRequest) {
@@ -36,10 +37,10 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/config/:path*",
     "/dashboard/:path*",
-    "/relances/:path*",
-    "/api/config/:path*",
-    "/api/prospects/:path*",
+    "/client/:path*",
+    "/clients/:path*",
+    "/api/clients/:path*",
+    "/api/leads/:path*",
   ],
 };

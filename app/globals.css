@@ -25,6 +25,47 @@ body.embed {
   min-height: 0;
 }
 
+/* Curseur clignotant de l'effet machine à écrire (accroche du widget). */
+@keyframes selvema-caret {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+.selvema-caret {
+  animation: selvema-caret 0.9s step-end infinite;
+}
+
+/* Séquence d'entrée du widget (voir ChatWidget.tsx) :
+   0 ms      le cadre s'affiche (zoom, géré par widget.js)
+   +300 ms   le personnage se hisse depuis la zone de conversation
+   +300 ms   l'accroche s'écrit (machine à écrire)
+   +300 ms   la bulle de bienvenue apparaît vide puis se remplit lettre par lettre
+   Le cadre paraît à ~2000 ms → le personnage monte à 2,3 s. */
+@keyframes selvema-char-rise {
+  from {
+    transform: translateY(44px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+.selvema-char {
+  animation: selvema-char-rise 0.6s ease-out 2.3s both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .selvema-char {
+    animation-delay: 0.2s;
+    animation-duration: 0.01s;
+  }
+}
+
 @layer components {
   .field {
     @apply w-full rounded-lg border border-[#882de1]/50 bg-black px-4 py-3 text-white placeholder:text-white/40 outline-none transition-colors duration-150 hover:border-[#882de1] focus:border-[#882de1];

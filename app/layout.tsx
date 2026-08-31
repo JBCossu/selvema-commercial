@@ -9,9 +9,9 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Selvema Commercial — Assistant IA pour agences immobilières",
+  title: "Panneau de contrôle Selvema Commercial",
   description:
-    "L'assistant en ligne qui qualifie vos prospects, transmet des fiches structurées et relance automatiquement. Par Selvema.",
+    "Panneau de contrôle des assistants conversationnels Selvema pour agences immobilières.",
   icons: { icon: "/favicon.ico" },
 };
 
