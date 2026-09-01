@@ -15,9 +15,6 @@ function fmtDate(s: string) {
 }
 
 function followUpCell(lead: Lead, step: 3 | 7) {
-  if (lead.relance_response) {
-    return <span className="text-white/40">Le prospect a répondu</span>;
-  }
   const sentAt = step === 3 ? lead.followup_3_sent_at : lead.followup_7_sent_at;
   if (sentAt) {
     return (
@@ -131,33 +128,19 @@ export default function LeadsTable({ leads: initial }: { leads: Lead[] }) {
             <Fragment key={lead.id}>
               <tr className="border-b border-white/5 align-top transition-colors hover:bg-white/[0.03]">
                 <td className="px-4 py-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      onClick={() =>
-                        setOpen((o) => (o === lead.id ? null : lead.id))
-                      }
-                      className="text-left font-medium text-white hover:text-[#c39bf0]"
-                    >
-                      {lead.name || "Sans nom"}
-                    </button>
-                    {lead.relance_response === "oui" && (
-                      <span className="rounded-full bg-[#22c55e]/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#22c55e]">
-                        À rappeler
-                      </span>
-                    )}
-                    {lead.relance_response === "non" && (
-                      <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white/50">
-                        A décliné
-                      </span>
-                    )}
-                  </div>
+                  <button
+                    onClick={() =>
+                      setOpen((o) => (o === lead.id ? null : lead.id))
+                    }
+                    className="text-left font-medium text-white hover:text-[#c39bf0]"
+                  >
+                    {lead.name || "Sans nom"}
+                  </button>
                   <div className="mt-0.5 text-xs text-white/40">
                     {lead.kind === "rappel"
                       ? "Demande de rappel"
                       : lead.project_type || "Qualifié"}
-                    {lead.status === "clos" && lead.relance_response !== "non"
-                      ? " · clos"
-                      : ""}
+                    {lead.status === "clos" ? " · clos" : ""}
                   </div>
                 </td>
                 <td className="px-4 py-3 text-white/70">

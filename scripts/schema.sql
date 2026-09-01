@@ -67,15 +67,16 @@ create table if not exists leads (
   summary            text,
   kind               text not null default 'qualifie',  -- qualifie | rappel
   status             text not null default 'nouveau',
-  -- nouveau | relance_j3_envoyee | relance_j7_envoyee | a_rappeler | clos
+  -- nouveau | relance_j3_envoyee | relance_j7_envoyee | clos
   followup_3_sent_at timestamptz,
   followup_7_sent_at timestamptz,
   last_followup_at    timestamptz
 );
 
--- Réponse du prospect à un bouton de relance (email J+3 / J+7).
-alter table leads add column if not exists relance_response    text;        -- null | 'oui' | 'non'
-alter table leads add column if not exists relance_response_at timestamptz;
+-- relance_response / relance_response_at : ajoutées puis abandonnées (les
+-- boutons de relance sont devenus des réponses préécrites mailto vers le
+-- dirigeant, sans page web ni suivi en base). Colonnes laissées si elles
+-- existent, plus lues.
 
 create index if not exists leads_client_created_idx on leads (client_id, created_at desc);
 create index if not exists leads_status_idx on leads (status);

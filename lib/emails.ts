@@ -1,6 +1,5 @@
 import type { Client, Lead } from "./db";
 import { APP_URL } from "./resend";
-import { relanceUrl } from "./relance-token";
 
 export type MailClient = Pick<
   Client,
@@ -79,32 +78,63 @@ export function callbackEmail(client: MailClient, p: Lead) {
   };
 }
 
-/** Deux boutons cliquables (liens signés) placés dans les emails de relance. */
-function reponseButtons(p: Lead, ouiLabel: string, nonLabel: string): string {
-  const oui = relanceUrl(p.id, "oui");
-  const non = relanceUrl(p.id, "non");
+/**
+ * Deux « réponses préécrites » : de simples liens mailto vers l'adresse du
+ * dirigeant, avec objet + corps déjà rédigés. Le prospect clique, sa messagerie
+ * ouvre une réponse toute prête adressée à l'agence, il n'a plus qu'à l'envoyer.
+ * Aucun jeton, aucune page web : la réponse arrive directement dans la boîte du
+ * dirigeant. (Gmail affiche aussi ses suggestions de réponse rapide par-dessus.)
+ */
+function replyButton(
+  to: string,
+  label: string,
+  subject: string,
+  body: string,
+  primary: boolean
+): string {
+  const href = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(
+    subject
+  )}&body=${encodeURIComponent(body)}`;
   const base =
     "display:inline-block;padding:12px 22px;border-radius:9999px;font-size:14px;font-weight:600;text-decoration:none;margin:0 10px 10px 0;";
-  return `
-    <div style="margin:22px 0 6px;">
-      <a href="${oui}" style="${base}background:#882de1;color:#ffffff;">${ouiLabel}</a>
-      <a href="${non}" style="${base}background:#15151f;color:#c9c9d4;border:1px solid #33334a;">${nonLabel}</a>
-    </div>`;
+  const skin = primary
+    ? "background:#882de1;color:#ffffff;"
+    : "background:#15151f;color:#c9c9d4;border:1px solid #33334a;";
+  return `<a href="${href}" style="${base}${skin}">${label}</a>`;
 }
 
 /** Relance J+3 / J+7 envoyée au prospect, au nom de l'agence. Ton chaleureux,
-    aucun tiret. Deux boutons de réponse (liens signés). */
+    aucun tiret. Deux réponses préécrites (mailto vers le dirigeant). */
 export function followUpEmail(client: MailClient, p: Lead, step: 3 | 7) {
   const agency = escapeHtml(client.agency_name);
-  const hi = p.name ? `Bonjour ${escapeHtml(p.name.split(" ")[0])},` : "Bonjour,";
+  const firstName = p.name ? p.name.split(" ")[0] : "";
+  const hi = firstName ? `Bonjour ${escapeHtml(firstName)},` : "Bonjour,";
   const par = (t: string) =>
     `<p style="color:#e6e6ef;font-size:14px;line-height:1.7;margin:0 0 14px;">${t}</p>`;
+  const who = p.name ? `${p.name}` : "un prospect";
+  const to = client.owner_email;
 
   let body: string;
   let subject: string;
+  let buttons: string;
 
   if (step === 3) {
     subject = `Votre projet immobilier avec ${client.agency_name}`;
+    buttons =
+      replyButton(
+        to,
+        "Oui, appelez-moi",
+        `Oui, appelez-moi (${who})`,
+        `Bonjour,\n\nOui, je souhaite qu'un conseiller m'appelle pour parler de mon projet immobilier.\n\nMerci,\n${p.name || ""}`.trim(),
+        true
+      ) +
+      replyButton(
+        to,
+        "Non merci",
+        `Non merci (${who})`,
+        `Bonjour,\n\nJe vous remercie mais je ne souhaite pas être recontacté pour le moment.\n\nBonne journée,\n${p.name || ""}`.trim(),
+        false
+      );
     body = `
       ${par(hi)}
       ${par(
@@ -113,14 +143,29 @@ export function followUpEmail(client: MailClient, p: Lead, step: 3 | 7) {
         }. Je voulais simplement prendre de vos nouvelles.`
       )}
       ${par(
-        `Souhaitez-vous qu'un conseiller vous appelle pour en discuter tranquillement de vive voix ?`
+        `Souhaitez-vous qu'un conseiller vous appelle pour en discuter tranquillement de vive voix ? Un clic sur la réponse qui vous convient suffit.`
       )}
-      ${reponseButtons(p, "Oui, appelez-moi", "Non merci")}
+      <div style="margin:22px 0 6px;">${buttons}</div>
       ${par(
         `Vous pouvez aussi répondre directement à cet email, cela nous fait toujours plaisir de vous lire.`
       )}`;
   } else {
     subject = `On reste disponible pour votre projet, ${client.agency_name}`;
+    buttons =
+      replyButton(
+        to,
+        "Oui, recontactez-moi",
+        `Oui, recontactez-moi (${who})`,
+        `Bonjour,\n\nOui, vous pouvez me recontacter plus tard au sujet de mon projet immobilier.\n\nMerci,\n${p.name || ""}`.trim(),
+        true
+      ) +
+      replyButton(
+        to,
+        "Non merci",
+        `Non merci (${who})`,
+        `Bonjour,\n\nJe vous remercie mais mon projet n'est plus d'actualité pour le moment.\n\nBonne journée,\n${p.name || ""}`.trim(),
+        false
+      );
     body = `
       ${par(hi)}
       ${par(
@@ -128,8 +173,10 @@ export function followUpEmail(client: MailClient, p: Lead, step: 3 | 7) {
           p.location ? ` sur ${escapeHtml(p.location)}` : ""
         }. Si le moment n'est pas idéal pour vous, c'est tout à fait normal, et nous serons là le jour où vous serez prêt.`
       )}
-      ${par(`Souhaitez-vous que l'on vous recontacte plus tard ?`)}
-      ${reponseButtons(p, "Oui, recontactez-moi", "Non merci")}
+      ${par(
+        `Souhaitez-vous que l'on vous recontacte plus tard ? Un clic sur la réponse qui vous convient suffit.`
+      )}
+      <div style="margin:22px 0 6px;">${buttons}</div>
       ${par(
         `Quoi qu'il en soit, nous vous souhaitons une belle réussite dans votre projet.`
       )}`;
@@ -148,7 +195,7 @@ export function followUpEmail(client: MailClient, p: Lead, step: 3 | 7) {
 export function followUpNotice(client: MailClient, p: Lead, step: 3 | 7) {
   const inner = `
     <h1 style="font-size:19px;margin:12px 0 4px;color:#fff;">Relance J+${step} envoyée</h1>
-    <p style="color:#c9c9d4;font-size:14px;margin:0 0 16px;">Une relance automatique vient de partir vers ce prospect au nom de ${escapeHtml(client.agency_name)}. Le prospect peut y répondre en un clic, vous serez prévenu de sa réponse.</p>
+    <p style="color:#c9c9d4;font-size:14px;margin:0 0 16px;">Une relance automatique vient de partir vers ce prospect au nom de ${escapeHtml(client.agency_name)}. L'email contient deux réponses préécrites : s'il en choisit une, sa réponse arrive directement dans votre boîte mail.</p>
     <table style="border-collapse:collapse;width:100%;">
       ${row("Nom", p.name)}
       ${row("Email", p.email)}
@@ -158,48 +205,6 @@ export function followUpNotice(client: MailClient, p: Lead, step: 3 | 7) {
     </table>`;
   return {
     subject: `Relance J+${step} envoyée${p.name ? " à " + p.name : ""}`,
-    html: wrap(inner, client.id),
-  };
-}
-
-/** Notification au dirigeant : le prospect a cliqué « Oui » ou « Non ». */
-export function relanceResponseNotice(
-  client: MailClient,
-  p: Lead,
-  reponse: "oui" | "non"
-) {
-  const agency = escapeHtml(client.agency_name);
-  if (reponse === "oui") {
-    const inner = `
-      <h1 style="font-size:19px;margin:12px 0 4px;color:#22c55e;">Un prospect souhaite être rappelé</h1>
-      <p style="color:#c9c9d4;font-size:14px;margin:0 0 16px;">${p.name ? escapeHtml(p.name) : "Ce prospect"} vient de répondre à votre relance et demande à être recontacté par ${agency}. C'est le bon moment pour reprendre contact.</p>
-      <table style="border-collapse:collapse;width:100%;">
-        ${row("Nom", p.name)}
-        ${row("Email", p.email)}
-        ${row("Téléphone", p.phone)}
-        ${row("Projet", p.project_type)}
-        ${row("Budget", p.budget)}
-        ${row("Localisation", p.location)}
-        ${row("Prospect reçu le", new Date(p.created_at).toLocaleString("fr-FR"))}
-        ${row("A répondu le", new Date().toLocaleString("fr-FR"))}
-      </table>
-      <p style="color:#c9c9d4;font-size:13px;margin:16px 0 0;">Le lead est maintenant marqué « À rappeler » dans votre tableau de bord.</p>`;
-    return {
-      subject: `Bonne nouvelle, ${p.name || "un prospect"} souhaite être rappelé`,
-      html: wrap(inner, client.id),
-    };
-  }
-  const inner = `
-    <h1 style="font-size:19px;margin:12px 0 4px;color:#fff;">Un prospect a décliné</h1>
-    <p style="color:#c9c9d4;font-size:14px;margin:0 0 16px;">${p.name ? escapeHtml(p.name) : "Ce prospect"} vient d'indiquer ne pas souhaiter être recontacté pour le moment. Le lead a été classé sans suite dans votre tableau de bord.</p>
-    <table style="border-collapse:collapse;width:100%;">
-      ${row("Nom", p.name)}
-      ${row("Email", p.email)}
-      ${row("Prospect reçu le", new Date(p.created_at).toLocaleString("fr-FR"))}
-      ${row("A répondu le", new Date().toLocaleString("fr-FR"))}
-    </table>`;
-  return {
-    subject: `${p.name || "Un prospect"} ne souhaite pas être recontacté`,
     html: wrap(inner, client.id),
   };
 }
