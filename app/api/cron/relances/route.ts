@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import type { Lead } from "@/lib/db";
-import { getResend, FROM_EMAIL } from "@/lib/resend";
+import { getResend, FROM_EMAIL, fromWithName } from "@/lib/resend";
 import { followUpEmail, followUpNotice, type MailClient } from "@/lib/emails";
 
 export const dynamic = "force-dynamic";
@@ -57,7 +57,7 @@ async function run(request: Request) {
     const client = mailClient(r);
     const mail = followUpEmail(client, r, 3);
     await resend.emails.send({
-      from: FROM_EMAIL,
+      from: fromWithName(client.agency_name),
       to: r.email!,
       replyTo: client.owner_email,
       subject: mail.subject,
@@ -98,7 +98,7 @@ async function run(request: Request) {
     const client = mailClient(r);
     const mail = followUpEmail(client, r, 7);
     await resend.emails.send({
-      from: FROM_EMAIL,
+      from: fromWithName(client.agency_name),
       to: r.email!,
       replyTo: client.owner_email,
       subject: mail.subject,

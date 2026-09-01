@@ -6,18 +6,31 @@ export type MailClient = Pick<
   "id" | "agency_name" | "owner_email" | "owner_phone"
 >;
 
-const WRAP = (inner: string) => `
+const SHELL = (inner: string, footer: string) => `
 <div style="background:#0b0b12;padding:32px 0;font-family:Inter,Segoe UI,Arial,sans-serif;">
   <div style="max-width:560px;margin:0 auto;background:#000;border:1px solid #882de1;border-radius:16px;padding:28px 30px;color:#fff;">
     <div style="font-size:18px;font-weight:700;letter-spacing:-0.02em;color:#fff;margin-bottom:4px;">Selvema</div>
     ${inner}
-    <p style="margin-top:28px;font-size:12px;color:#8b8b9a;">Assistant commercial Selvema · <a style="color:#c39bf0;" href="${APP_URL}/client/${"__CLIENT_ID__"}">Fiche client</a></p>
+    ${footer}
   </div>
 </div>`;
 
-function wrap(inner: string, clientId: string) {
-  return WRAP(inner).replace("__CLIENT_ID__", clientId);
+/**
+ * Enveloppe visuelle commune. `footer` est affiché par défaut (lien « Fiche
+ * client » vers le back office, utile au dirigeant) mais est retiré pour les
+ * emails envoyés au prospect, qui n'ont rien à voir avec le back office.
+ */
+function wrap(inner: string, clientId: string, opts: { footer?: boolean } = {}) {
+  const footer =
+    opts.footer === false
+      ? ""
+      : `<p style="margin-top:28px;font-size:12px;color:#8b8b9a;">Assistant commercial Selvema · <a style="color:#c39bf0;" href="${APP_URL}/client/${clientId}">Fiche client</a></p>`;
+  return SHELL(inner, footer);
 }
+
+/** Petit intitulé de section, en gris. */
+const kicker = (t: string) =>
+  `<p style="margin:22px 0 10px;font-size:12px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:#8b8b9a;">${t}</p>`;
 
 const row = (label: string, value: string | null | undefined) =>
   value && String(value).trim()
@@ -103,108 +116,147 @@ function replyButton(
   return `<a href="${href}" style="${base}${skin}">${label}</a>`;
 }
 
-/** Relance J+3 / J+7 envoyée au prospect, au nom de l'agence. Ton chaleureux,
-    aucun tiret. Deux réponses préécrites (mailto vers le dirigeant). */
+/**
+ * Relance J+3 / J+7 envoyée au prospect, au nom de l'agence cliente.
+ *
+ * Structure reprise du document de référence :
+ *   en tête du corps  → le nom de l'agence
+ *   corps J+3         → message chaleureux qui rappelle l'échange avec
+ *                       l'assistant et propose un appel avec un conseiller
+ *   corps J+7         → message plus doux, dernière tentative, compréhensif si
+ *                       le moment n'est pas idéal
+ *   choix de réponse  → deux boutons mailto « Oui, appelez-moi » / « Non merci »
+ *   signature         → nom de l'agence + numéro + email du dirigeant
+ *
+ * Les deux boutons sont de simples liens mailto vers l'adresse du dirigeant,
+ * avec objet et corps déjà rédigés (repris mot pour mot du document). Le
+ * prospect clique, sa messagerie ouvre une réponse toute prête adressée à
+ * l'agence, il n'a plus qu'à l'envoyer : elle arrive directement dans la boîte
+ * du dirigeant, sans page web ni jeton. Aucun tiret dans le texte visible.
+ */
 export function followUpEmail(client: MailClient, p: Lead, step: 3 | 7) {
   const agency = escapeHtml(client.agency_name);
   const firstName = p.name ? p.name.split(" ")[0] : "";
   const hi = firstName ? `Bonjour ${escapeHtml(firstName)},` : "Bonjour,";
+  const signName = firstName || p.name || "";
+  const who = p.name || "un prospect";
+  const to = client.owner_email;
   const par = (t: string) =>
     `<p style="color:#e6e6ef;font-size:14px;line-height:1.7;margin:0 0 14px;">${t}</p>`;
-  const who = p.name ? `${p.name}` : "un prospect";
-  const to = client.owner_email;
 
-  let body: string;
   let subject: string;
-  let buttons: string;
+  let body: string;
+  let yesBody: string;
+  let noBody: string;
 
   if (step === 3) {
     subject = `Votre projet immobilier avec ${client.agency_name}`;
-    buttons =
-      replyButton(
-        to,
-        "Oui, appelez-moi",
-        `Oui, appelez-moi (${who})`,
-        `Bonjour,\n\nOui, je souhaite qu'un conseiller m'appelle pour parler de mon projet immobilier.\n\nMerci,\n${p.name || ""}`.trim(),
-        true
-      ) +
-      replyButton(
-        to,
-        "Non merci",
-        `Non merci (${who})`,
-        `Bonjour,\n\nJe vous remercie mais je ne souhaite pas être recontacté pour le moment.\n\nBonne journée,\n${p.name || ""}`.trim(),
-        false
-      );
+    yesBody = `Bonjour,\n\nOui, je souhaite qu'un conseiller m'appelle.\n\nMerci,\n${signName}`.trim();
+    noBody = `Bonjour,\n\nJe vous remercie, mais je ne souhaite pas être contacté pour le moment.\n\nBonne journée,\n${signName}`.trim();
     body = `
       ${par(hi)}
       ${par(
-        `Vous avez échangé récemment avec notre assistant en ligne au sujet de votre projet${
+        `Vous avez échangé récemment avec notre assistant en ligne sur notre site internet au sujet de votre projet${
           p.project_type ? ` (${escapeHtml(p.project_type)})` : ""
-        }. Je voulais simplement prendre de vos nouvelles.`
+        }. Je voulais simplement savoir si vous souhaitiez en parler plus sérieusement avec un conseiller.`
       )}
       ${par(
-        `Souhaitez-vous qu'un conseiller vous appelle pour en discuter tranquillement de vive voix ? Un clic sur la réponse qui vous convient suffit.`
-      )}
-      <div style="margin:22px 0 6px;">${buttons}</div>
-      ${par(
-        `Vous pouvez aussi répondre directement à cet email, cela nous fait toujours plaisir de vous lire.`
+        `Un clic sur la réponse qui vous convient suffit, puis vous validez par Envoyer et nous revenons vers vous au plus vite.`
       )}`;
   } else {
     subject = `On reste disponible pour votre projet, ${client.agency_name}`;
-    buttons =
-      replyButton(
-        to,
-        "Oui, recontactez-moi",
-        `Oui, recontactez-moi (${who})`,
-        `Bonjour,\n\nOui, vous pouvez me recontacter plus tard au sujet de mon projet immobilier.\n\nMerci,\n${p.name || ""}`.trim(),
-        true
-      ) +
-      replyButton(
-        to,
-        "Non merci",
-        `Non merci (${who})`,
-        `Bonjour,\n\nJe vous remercie mais mon projet n'est plus d'actualité pour le moment.\n\nBonne journée,\n${p.name || ""}`.trim(),
-        false
-      );
+    yesBody = `Bonjour,\n\nOui, je souhaite finalement qu'un conseiller m'appelle.\n\nMerci,\n${signName}`.trim();
+    noBody = `Bonjour,\n\nJe vous remercie, mais je ne souhaite définitivement pas être contacté.\n\nBonne journée,\n${signName}`.trim();
     body = `
       ${par(hi)}
       ${par(
-        `Je reviens vers vous une dernière fois au sujet de votre projet immobilier${
-          p.location ? ` sur ${escapeHtml(p.location)}` : ""
-        }. Si le moment n'est pas idéal pour vous, c'est tout à fait normal, et nous serons là le jour où vous serez prêt.`
+        `Je reviens vers vous une dernière fois au sujet de votre conversation avec notre assistant en ligne sur notre site internet.`
       )}
       ${par(
-        `Souhaitez-vous que l'on vous recontacte plus tard ? Un clic sur la réponse qui vous convient suffit.`
+        `Si le moment n'est pas idéal pour vous, c'est tout à fait compréhensible, et nous serons là le jour où vous serez prêt.`
       )}
-      <div style="margin:22px 0 6px;">${buttons}</div>
       ${par(
-        `Quoi qu'il en soit, nous vous souhaitons une belle réussite dans votre projet.`
+        `Un clic suffit pour que l'on vous recontacte plus tard, si vous souhaitez finalement en discuter avec un conseiller.`
       )}`;
   }
+
+  const buttons =
+    replyButton(to, "Oui, appelez-moi", `Oui, appelez-moi (${who})`, yesBody, true) +
+    replyButton(to, "Non merci", `Non merci (${who})`, noBody, false);
+
+  const closing =
+    step === 3
+      ? `Vous pouvez aussi répondre directement à cet email, cela nous fera plaisir de vous lire.`
+      : `Quoi qu'il en soit, nous vous souhaitons une belle réussite dans votre projet immobilier.`;
+
+  const phoneLine = client.owner_phone
+    ? `${escapeHtml(client.owner_phone)}<br/>`
+    : "";
+  const signature = `
+    <p style="color:#e6e6ef;font-size:14px;line-height:1.7;margin:24px 0 0;">
+      Bien à vous,<br/>
+      ${agency}<br/>
+      <span style="color:#8b8b9a;">Coordonnées de l'agence :</span><br/>
+      ${phoneLine}${escapeHtml(client.owner_email)}
+    </p>`;
 
   const inner = `
     <h1 style="font-size:19px;margin:12px 0 14px;color:#fff;">${agency}</h1>
     ${body}
-    <p style="color:#e6e6ef;font-size:14px;line-height:1.7;margin-top:18px;">Bien à vous,<br/>L'équipe ${agency}${
-      client.owner_phone ? `<br/>${escapeHtml(client.owner_phone)}` : ""
-    }</p>`;
-  return { subject, html: wrap(inner, client.id) };
+    ${kicker("Choix de réponse")}
+    <div style="margin:0 0 6px;">${buttons}</div>
+    ${par(closing)}
+    ${signature}`;
+
+  return { subject, html: wrap(inner, client.id, { footer: false }) };
 }
 
-/** Notification au dirigeant : une relance vient de partir. Aucun tiret. */
+/** Contexte complet de l'échange, pour que le dirigeant comprenne la situation
+    en un coup d'oeil. Le résumé de l'assistant d'abord, puis les faits connus. */
+function leadContext(p: Lead): string {
+  const parts: string[] = [];
+  if (p.summary && p.summary.trim()) parts.push(p.summary.trim());
+  const facts: string[] = [];
+  if (p.project_type) facts.push(`Projet : ${p.project_type}`);
+  if (p.property_type) facts.push(`Type de bien : ${p.property_type}`);
+  if (p.location) facts.push(`Secteur : ${p.location}`);
+  if (p.budget) facts.push(`Budget : ${p.budget}`);
+  if (p.timeline) facts.push(`Échéance : ${p.timeline}`);
+  if (p.situation) facts.push(`Situation : ${p.situation}`);
+  if (facts.length) parts.push(facts.join(" · "));
+  return parts.join("\n\n") || "Le contexte de l'échange n'a pas été précisé.";
+}
+
+/**
+ * Notification au dirigeant : une relance J+3 ou J+7 vient de partir vers son
+ * prospect, au nom de son agence. Structure reprise du document de référence :
+ * titre « Relance J+X envoyée », annonce, puis les informations du prospect
+ * (Nom, Numéro, Courriel, Contexte). Aucun tiret dans le texte visible.
+ */
 export function followUpNotice(client: MailClient, p: Lead, step: 3 | 7) {
+  const contextHtml = escapeHtml(leadContext(p)).replace(/\n/g, "<br/>");
   const inner = `
-    <h1 style="font-size:19px;margin:12px 0 4px;color:#fff;">Relance J+${step} envoyée</h1>
-    <p style="color:#c9c9d4;font-size:14px;margin:0 0 16px;">Une relance automatique vient de partir vers ce prospect au nom de ${escapeHtml(client.agency_name)}. L'email contient deux réponses préécrites : s'il en choisit une, sa réponse arrive directement dans votre boîte mail.</p>
+    <h1 style="font-size:19px;margin:12px 0 8px;color:#fff;">Relance J+${step} envoyée</h1>
+    <p style="color:#c9c9d4;font-size:14px;line-height:1.7;margin:0 0 8px;">
+      Une relance automatique vient de partir vers ce prospect au nom de ${escapeHtml(
+        client.agency_name
+      )}. Le message contient deux choix de réponse très clairs. Si le prospect réagit, vous êtes averti directement dans votre boîte mail.
+    </p>
+    ${kicker("Informations concernant le prospect")}
     <table style="border-collapse:collapse;width:100%;">
       ${row("Nom", p.name)}
-      ${row("Email", p.email)}
-      ${row("Téléphone", p.phone)}
-      ${row("Projet", p.project_type)}
-      ${row("Prospect reçu le", new Date(p.created_at).toLocaleString("fr-FR"))}
-    </table>`;
+      ${row("Numéro", p.phone)}
+      ${row("Courriel", p.email)}
+      <tr>
+        <td style="padding:6px 12px 6px 0;color:#8b8b9a;font-size:13px;vertical-align:top;white-space:nowrap;">Contexte</td>
+        <td style="padding:6px 0;color:#fff;font-size:13px;line-height:1.6;">${contextHtml}</td>
+      </tr>
+    </table>
+    <p style="color:#8b8b9a;font-size:13px;line-height:1.7;margin:16px 0 0;">
+      L'objectif est que vous ayez assez de contexte pour comprendre rapidement la situation et savoir quoi dire si vous rappelez le prospect.
+    </p>`;
   return {
-    subject: `Relance J+${step} envoyée${p.name ? " à " + p.name : ""}`,
+    subject: `Relance J+${step} envoyée`,
     html: wrap(inner, client.id),
   };
 }
