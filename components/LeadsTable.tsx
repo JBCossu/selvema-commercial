@@ -15,6 +15,9 @@ function fmtDate(s: string) {
 }
 
 function followUpCell(lead: Lead, step: 3 | 7) {
+  if (lead.relance_response) {
+    return <span className="text-white/40">Le prospect a répondu</span>;
+  }
   const sentAt = step === 3 ? lead.followup_3_sent_at : lead.followup_7_sent_at;
   if (sentAt) {
     return (
@@ -37,11 +40,16 @@ function followUpCell(lead: Lead, step: 3 | 7) {
   );
 }
 
+type TestMsg = { ok: boolean; text: string };
+
 export default function LeadsTable({ leads: initial }: { leads: Lead[] }) {
   const router = useRouter();
   const [leads, setLeads] = useState(initial);
   const [busy, setBusy] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
+  // Envoi de relance de test en cours ("<leadId>:<step>") et retour par lead.
+  const [testing, setTesting] = useState<string | null>(null);
+  const [testMsg, setTestMsg] = useState<Record<string, TestMsg>>({});
 
   async function setStatus(id: string, status: Lead["status"]) {
     setBusy(id);
@@ -57,6 +65,43 @@ export default function LeadsTable({ leads: initial }: { leads: Lead[] }) {
       }
     } finally {
       setBusy(null);
+    }
+  }
+
+  // Envoie tout de suite la relance J+3 / J+7 au prospect (test — n'attend pas
+  // les délais réels et ne modifie pas l'état du lead).
+  async function testRelance(id: string, step: 3 | 7) {
+    setTesting(`${id}:${step}`);
+    setTestMsg((m) => {
+      const n = { ...m };
+      delete n[id];
+      return n;
+    });
+    try {
+      const res = await fetch(`/api/leads/${id}/test-relance`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ step }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || "Échec de l'envoi.");
+      setTestMsg((m) => ({
+        ...m,
+        [id]: {
+          ok: true,
+          text: `Relance J+${step} envoyée à ${d.to} (test — lead inchangé).`,
+        },
+      }));
+    } catch (err) {
+      setTestMsg((m) => ({
+        ...m,
+        [id]: {
+          ok: false,
+          text: err instanceof Error ? err.message : "Échec de l'envoi.",
+        },
+      }));
+    } finally {
+      setTesting(null);
     }
   }
 
@@ -86,19 +131,33 @@ export default function LeadsTable({ leads: initial }: { leads: Lead[] }) {
             <Fragment key={lead.id}>
               <tr className="border-b border-white/5 align-top transition-colors hover:bg-white/[0.03]">
                 <td className="px-4 py-3">
-                  <button
-                    onClick={() =>
-                      setOpen((o) => (o === lead.id ? null : lead.id))
-                    }
-                    className="text-left font-medium text-white hover:text-[#c39bf0]"
-                  >
-                    {lead.name || "Sans nom"}
-                  </button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() =>
+                        setOpen((o) => (o === lead.id ? null : lead.id))
+                      }
+                      className="text-left font-medium text-white hover:text-[#c39bf0]"
+                    >
+                      {lead.name || "Sans nom"}
+                    </button>
+                    {lead.relance_response === "oui" && (
+                      <span className="rounded-full bg-[#22c55e]/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#22c55e]">
+                        À rappeler
+                      </span>
+                    )}
+                    {lead.relance_response === "non" && (
+                      <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white/50">
+                        A décliné
+                      </span>
+                    )}
+                  </div>
                   <div className="mt-0.5 text-xs text-white/40">
                     {lead.kind === "rappel"
                       ? "Demande de rappel"
                       : lead.project_type || "Qualifié"}
-                    {lead.status === "clos" ? " · clos" : ""}
+                    {lead.status === "clos" && lead.relance_response !== "non"
+                      ? " · clos"
+                      : ""}
                   </div>
                 </td>
                 <td className="px-4 py-3 text-white/70">
@@ -116,23 +175,62 @@ export default function LeadsTable({ leads: initial }: { leads: Lead[] }) {
                   {followUpCell(lead, 7)}
                 </td>
                 <td className="px-4 py-3">
-                  {lead.status === "clos" ? (
-                    <button
-                      disabled={busy === lead.id}
-                      onClick={() => setStatus(lead.id, "nouveau")}
-                      className="text-xs text-white/50 hover:text-white"
-                    >
-                      Rouvrir
-                    </button>
-                  ) : (
-                    <button
-                      disabled={busy === lead.id}
-                      onClick={() => setStatus(lead.id, "clos")}
-                      className="text-xs text-white/70 hover:text-white"
-                    >
-                      Marquer traité
-                    </button>
-                  )}
+                  <div className="flex flex-col gap-2">
+                    {lead.status === "clos" ? (
+                      <button
+                        disabled={busy === lead.id}
+                        onClick={() => setStatus(lead.id, "nouveau")}
+                        className="text-left text-xs text-white/50 hover:text-white"
+                      >
+                        Rouvrir
+                      </button>
+                    ) : (
+                      <button
+                        disabled={busy === lead.id}
+                        onClick={() => setStatus(lead.id, "clos")}
+                        className="text-left text-xs text-white/70 hover:text-white"
+                      >
+                        Marquer traité
+                      </button>
+                    )}
+
+                    {/* Boutons de test — envoi immédiat des relances */}
+                    <div className="border-t border-dashed border-white/10 pt-2">
+                      <div className="mb-1 text-[10px] uppercase tracking-wider text-white/30">
+                        Test relances
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {([3, 7] as const).map((s) => (
+                          <button
+                            key={s}
+                            disabled={!lead.email || testing === `${lead.id}:${s}`}
+                            onClick={() => testRelance(lead.id, s)}
+                            title={
+                              lead.email
+                                ? `Envoie tout de suite la relance J+${s} à ${lead.email}`
+                                : "Ce lead n'a pas d'email"
+                            }
+                            className="whitespace-nowrap rounded-md border border-[#882de1]/40 px-2 py-1 text-[11px] text-white/70 transition-colors hover:border-[#882de1] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            {testing === `${lead.id}:${s}`
+                              ? "Envoi…"
+                              : `Tester relance J+${s}`}
+                          </button>
+                        ))}
+                      </div>
+                      {testMsg[lead.id] && (
+                        <p
+                          className={`mt-1.5 max-w-[220px] text-[11px] leading-snug ${
+                            testMsg[lead.id].ok
+                              ? "text-[#22c55e]"
+                              : "text-red-400"
+                          }`}
+                        >
+                          {testMsg[lead.id].text}
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 </td>
               </tr>
               {open === lead.id && (

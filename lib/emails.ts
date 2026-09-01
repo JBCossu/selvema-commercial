@@ -1,5 +1,6 @@
 import type { Client, Lead } from "./db";
 import { APP_URL } from "./resend";
+import { relanceUrl } from "./relance-token";
 
 export type MailClient = Pick<
   Client,
@@ -78,44 +79,127 @@ export function callbackEmail(client: MailClient, p: Lead) {
   };
 }
 
-/** Relance J+3 / J+7 envoyée au prospect, au nom de l'agence. */
-export function followUpEmail(client: MailClient, p: Lead, step: 3 | 7) {
-  const hi = p.name ? `Bonjour ${escapeHtml(p.name.split(" ")[0])},` : "Bonjour,";
-  const body =
-    step === 3
-      ? `<p style="color:#e6e6ef;font-size:14px;line-height:1.6;">${hi}</p>
-         <p style="color:#e6e6ef;font-size:14px;line-height:1.6;">Vous avez récemment échangé avec notre assistant en ligne au sujet de votre projet${p.project_type ? " (" + escapeHtml(p.project_type) + ")" : ""}. Je voulais m'assurer que nous avons bien tous les éléments pour vous accompagner.</p>
-         <p style="color:#e6e6ef;font-size:14px;line-height:1.6;">Souhaitez-vous qu'un conseiller vous appelle cette semaine ? Un simple retour à cet email suffit.</p>`
-      : `<p style="color:#e6e6ef;font-size:14px;line-height:1.6;">${hi}</p>
-         <p style="color:#e6e6ef;font-size:14px;line-height:1.6;">Je reviens vers vous une dernière fois concernant votre projet${p.location ? " sur " + escapeHtml(p.location) : ""}. Si le moment n'est pas idéal, aucun souci — dites-nous simplement quand vous recontacter.</p>
-         <p style="color:#e6e6ef;font-size:14px;line-height:1.6;">Nous restons à votre disposition dès que vous le souhaitez.</p>`;
-  const inner = `
-    <h1 style="font-size:19px;margin:12px 0 12px;color:#fff;">${escapeHtml(client.agency_name)}</h1>
-    ${body}
-    <p style="color:#e6e6ef;font-size:14px;line-height:1.6;margin-top:18px;">Bien à vous,<br/>L'équipe ${escapeHtml(client.agency_name)}${client.owner_phone ? "<br/>" + escapeHtml(client.owner_phone) : ""}</p>`;
-  return {
-    subject:
-      step === 3
-        ? `Votre projet immobilier — ${client.agency_name}`
-        : `On reste disponible pour votre projet — ${client.agency_name}`,
-    html: wrap(inner, client.id),
-  };
+/** Deux boutons cliquables (liens signés) placés dans les emails de relance. */
+function reponseButtons(p: Lead, ouiLabel: string, nonLabel: string): string {
+  const oui = relanceUrl(p.id, "oui");
+  const non = relanceUrl(p.id, "non");
+  const base =
+    "display:inline-block;padding:12px 22px;border-radius:9999px;font-size:14px;font-weight:600;text-decoration:none;margin:0 10px 10px 0;";
+  return `
+    <div style="margin:22px 0 6px;">
+      <a href="${oui}" style="${base}background:#882de1;color:#ffffff;">${ouiLabel}</a>
+      <a href="${non}" style="${base}background:#15151f;color:#c9c9d4;border:1px solid #33334a;">${nonLabel}</a>
+    </div>`;
 }
 
-/** Notification au dirigeant : une relance vient de partir. */
+/** Relance J+3 / J+7 envoyée au prospect, au nom de l'agence. Ton chaleureux,
+    aucun tiret. Deux boutons de réponse (liens signés). */
+export function followUpEmail(client: MailClient, p: Lead, step: 3 | 7) {
+  const agency = escapeHtml(client.agency_name);
+  const hi = p.name ? `Bonjour ${escapeHtml(p.name.split(" ")[0])},` : "Bonjour,";
+  const par = (t: string) =>
+    `<p style="color:#e6e6ef;font-size:14px;line-height:1.7;margin:0 0 14px;">${t}</p>`;
+
+  let body: string;
+  let subject: string;
+
+  if (step === 3) {
+    subject = `Votre projet immobilier avec ${client.agency_name}`;
+    body = `
+      ${par(hi)}
+      ${par(
+        `Vous avez échangé récemment avec notre assistant en ligne au sujet de votre projet${
+          p.project_type ? ` (${escapeHtml(p.project_type)})` : ""
+        }. Je voulais simplement prendre de vos nouvelles.`
+      )}
+      ${par(
+        `Souhaitez-vous qu'un conseiller vous appelle pour en discuter tranquillement de vive voix ?`
+      )}
+      ${reponseButtons(p, "Oui, appelez-moi", "Non merci")}
+      ${par(
+        `Vous pouvez aussi répondre directement à cet email, cela nous fait toujours plaisir de vous lire.`
+      )}`;
+  } else {
+    subject = `On reste disponible pour votre projet, ${client.agency_name}`;
+    body = `
+      ${par(hi)}
+      ${par(
+        `Je reviens vers vous une dernière fois au sujet de votre projet immobilier${
+          p.location ? ` sur ${escapeHtml(p.location)}` : ""
+        }. Si le moment n'est pas idéal pour vous, c'est tout à fait normal, et nous serons là le jour où vous serez prêt.`
+      )}
+      ${par(`Souhaitez-vous que l'on vous recontacte plus tard ?`)}
+      ${reponseButtons(p, "Oui, recontactez-moi", "Non merci")}
+      ${par(
+        `Quoi qu'il en soit, nous vous souhaitons une belle réussite dans votre projet.`
+      )}`;
+  }
+
+  const inner = `
+    <h1 style="font-size:19px;margin:12px 0 14px;color:#fff;">${agency}</h1>
+    ${body}
+    <p style="color:#e6e6ef;font-size:14px;line-height:1.7;margin-top:18px;">Bien à vous,<br/>L'équipe ${agency}${
+      client.owner_phone ? `<br/>${escapeHtml(client.owner_phone)}` : ""
+    }</p>`;
+  return { subject, html: wrap(inner, client.id) };
+}
+
+/** Notification au dirigeant : une relance vient de partir. Aucun tiret. */
 export function followUpNotice(client: MailClient, p: Lead, step: 3 | 7) {
   const inner = `
     <h1 style="font-size:19px;margin:12px 0 4px;color:#fff;">Relance J+${step} envoyée</h1>
-    <p style="color:#c9c9d4;font-size:14px;margin:0 0 16px;">Une relance automatique vient d'être envoyée à ce prospect au nom de ${escapeHtml(client.agency_name)}.</p>
+    <p style="color:#c9c9d4;font-size:14px;margin:0 0 16px;">Une relance automatique vient de partir vers ce prospect au nom de ${escapeHtml(client.agency_name)}. Le prospect peut y répondre en un clic, vous serez prévenu de sa réponse.</p>
     <table style="border-collapse:collapse;width:100%;">
       ${row("Nom", p.name)}
       ${row("Email", p.email)}
       ${row("Téléphone", p.phone)}
       ${row("Projet", p.project_type)}
-      ${row("Prospect créé le", new Date(p.created_at).toLocaleString("fr-FR"))}
+      ${row("Prospect reçu le", new Date(p.created_at).toLocaleString("fr-FR"))}
     </table>`;
   return {
-    subject: `Relance J+${step} envoyée${p.name ? " — " + p.name : ""}`,
+    subject: `Relance J+${step} envoyée${p.name ? " à " + p.name : ""}`,
+    html: wrap(inner, client.id),
+  };
+}
+
+/** Notification au dirigeant : le prospect a cliqué « Oui » ou « Non ». */
+export function relanceResponseNotice(
+  client: MailClient,
+  p: Lead,
+  reponse: "oui" | "non"
+) {
+  const agency = escapeHtml(client.agency_name);
+  if (reponse === "oui") {
+    const inner = `
+      <h1 style="font-size:19px;margin:12px 0 4px;color:#22c55e;">Un prospect souhaite être rappelé</h1>
+      <p style="color:#c9c9d4;font-size:14px;margin:0 0 16px;">${p.name ? escapeHtml(p.name) : "Ce prospect"} vient de répondre à votre relance et demande à être recontacté par ${agency}. C'est le bon moment pour reprendre contact.</p>
+      <table style="border-collapse:collapse;width:100%;">
+        ${row("Nom", p.name)}
+        ${row("Email", p.email)}
+        ${row("Téléphone", p.phone)}
+        ${row("Projet", p.project_type)}
+        ${row("Budget", p.budget)}
+        ${row("Localisation", p.location)}
+        ${row("Prospect reçu le", new Date(p.created_at).toLocaleString("fr-FR"))}
+        ${row("A répondu le", new Date().toLocaleString("fr-FR"))}
+      </table>
+      <p style="color:#c9c9d4;font-size:13px;margin:16px 0 0;">Le lead est maintenant marqué « À rappeler » dans votre tableau de bord.</p>`;
+    return {
+      subject: `Bonne nouvelle, ${p.name || "un prospect"} souhaite être rappelé`,
+      html: wrap(inner, client.id),
+    };
+  }
+  const inner = `
+    <h1 style="font-size:19px;margin:12px 0 4px;color:#fff;">Un prospect a décliné</h1>
+    <p style="color:#c9c9d4;font-size:14px;margin:0 0 16px;">${p.name ? escapeHtml(p.name) : "Ce prospect"} vient d'indiquer ne pas souhaiter être recontacté pour le moment. Le lead a été classé sans suite dans votre tableau de bord.</p>
+    <table style="border-collapse:collapse;width:100%;">
+      ${row("Nom", p.name)}
+      ${row("Email", p.email)}
+      ${row("Prospect reçu le", new Date(p.created_at).toLocaleString("fr-FR"))}
+      ${row("A répondu le", new Date().toLocaleString("fr-FR"))}
+    </table>`;
+  return {
+    subject: `${p.name || "Un prospect"} ne souhaite pas être recontacté`,
     html: wrap(inner, client.id),
   };
 }

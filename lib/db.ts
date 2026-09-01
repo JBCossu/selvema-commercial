@@ -49,10 +49,18 @@ export type Lead = {
   situation: string | null;
   summary: string | null;
   kind: "qualifie" | "rappel";
-  status: "nouveau" | "relance_j3_envoyee" | "relance_j7_envoyee" | "clos";
+  status:
+    | "nouveau"
+    | "relance_j3_envoyee"
+    | "relance_j7_envoyee"
+    | "a_rappeler"
+    | "clos";
   followup_3_sent_at: string | null;
   followup_7_sent_at: string | null;
   last_followup_at: string | null;
+  // Réponse du prospect à un bouton de relance J+3 / J+7.
+  relance_response: "oui" | "non" | null;
+  relance_response_at: string | null;
 };
 
 /** Ligne enrichie pour les cards du dashboard. */

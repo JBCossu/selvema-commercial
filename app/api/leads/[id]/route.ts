@@ -7,6 +7,7 @@ const ALLOWED = new Set([
   "nouveau",
   "relance_j3_envoyee",
   "relance_j7_envoyee",
+  "a_rappeler",
   "clos",
 ]);
 
