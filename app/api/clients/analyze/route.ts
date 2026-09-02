@@ -1,9 +1,5 @@
 import { NextResponse } from "next/server";
-import {
-  isPublicHttpUrl,
-  fetchPageText,
-  generateChatbotConfig,
-} from "@/lib/analyze";
+import { isPublicHttpUrl, analyzeSite } from "@/lib/analyze";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -24,35 +20,26 @@ export async function POST(request: Request) {
     );
   }
 
-  let pageText: string;
   try {
-    pageText = await fetchPageText(url);
-  } catch (err) {
-    console.error("fetchPageText error", err);
-    return NextResponse.json(
-      {
-        error:
-          "Impossible de récupérer le site (" +
-          (err instanceof Error ? err.message : "erreur réseau") +
-          ").",
-      },
-      { status: 502 }
-    );
-  }
-
-  try {
-    const config = await generateChatbotConfig(pageText, url.toString());
+    const { config, pages, jsWarning } = await analyzeSite(url);
     if (!config) {
       return NextResponse.json(
         { error: "Le modèle n'a rien renvoyé, réessayez." },
         { status: 502 }
       );
     }
-    return NextResponse.json({ config });
+    return NextResponse.json({
+      config,
+      pagesVisited: pages.length,
+      pages,
+      jsWarning,
+    });
   } catch (err) {
-    console.error("generateChatbotConfig error", err);
+    console.error("analyzeSite error", err);
+    const message =
+      err instanceof Error ? err.message : "L'analyse du site a échoué.";
     return NextResponse.json(
-      { error: "L'analyse par l'IA a échoué, réessayez." },
+      { error: `L'analyse du site a échoué (${message}).` },
       { status: 502 }
     );
   }

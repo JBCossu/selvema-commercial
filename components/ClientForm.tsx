@@ -23,6 +23,9 @@ export type ClientFields = {
 
 const DEFAULT_TAGLINE = "Une question ? Je suis là pour vous aider.";
 
+const JS_WARNING_MESSAGE =
+  "⚠️ Ce site utilise du JavaScript dynamique. L'analyse peut être incomplète. Vérifiez et complétez manuellement la base de connaissances ci-dessous.";
+
 const DEFAULT_COLORS = {
   widget_color: "#882de1",
   background_color: "#0a0a1a",
@@ -66,6 +69,7 @@ export default function ClientForm({
     ok: boolean;
     text: string;
   } | null>(null);
+  const [jsWarning, setJsWarning] = useState(false);
 
   function set<K extends keyof ClientFields>(k: K, v: ClientFields[K]) {
     setState((s) => ({ ...s, [k]: v }));
@@ -78,6 +82,7 @@ export default function ClientForm({
     }
     setAnalyzing(true);
     setAnalyzeMsg(null);
+    setJsWarning(false);
     try {
       const res = await fetch("/api/clients/analyze", {
         method: "POST",
@@ -87,9 +92,16 @@ export default function ClientForm({
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error || "Analyse impossible.");
       set("chatbot_config", d.config);
+      setJsWarning(Boolean(d.jsWarning));
       setAnalyzeMsg({
         ok: true,
-        text: "Configuration générée. Relisez-la et ajustez-la avant d'enregistrer.",
+        text:
+          (d.pagesVisited
+            ? `${d.pagesVisited} page${d.pagesVisited > 1 ? "s" : ""} analysée${
+                d.pagesVisited > 1 ? "s" : ""
+              }. `
+            : "") +
+          "Base de connaissances générée. Relisez-la et ajustez-la avant d'enregistrer.",
       });
     } catch (err) {
       setAnalyzeMsg({
@@ -213,7 +225,17 @@ export default function ClientForm({
 
       {/* Base de connaissances (analyse du site) */}
       <section className="space-y-4 rounded-2xl border border-[#882de1] bg-black p-6">
-        <h2 className="text-lg font-semibold">Base de connaissances</h2>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <h2 className="text-lg font-semibold">Base de connaissances</h2>
+          {jsWarning && (
+            <p
+              role="alert"
+              className="rounded-lg border border-orange-500/60 bg-orange-500/15 px-3 py-1.5 text-xs font-medium text-orange-300"
+            >
+              {JS_WARNING_MESSAGE}
+            </p>
+          )}
+        </div>
         <p className="text-xs text-white/40">
           Ce qui est propre à ce client : description, services, zones, biens,
           FAQ. Le comportement de l'assistant (ton, qualification des prospects)

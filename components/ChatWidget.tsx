@@ -93,7 +93,7 @@ export default function ChatWidget({
   const fullTagline = line2 ? `${line1}\n${line2}` : line1;
 
   const greeting = ready
-    ? `Bonjour ! Je suis l'assistant de ${agencyName}, disponible pour répondre à vos questions et vous orienter dans votre projet immobilier. Posez moi n'importe quelle question. 😊`
+    ? `Bonjour ! Je connais tous les biens et services de l'agence par cœur, alors n'hésitez pas à me poser n'importe laquelle de vos questions.`
     : `Bonjour 👋 L'assistant en ligne est momentanément indisponible. Merci de revenir un peu plus tard.`;
 
   // La conversation démarre vide : le message de bienvenue n'apparaît qu'à
