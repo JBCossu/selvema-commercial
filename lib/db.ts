@@ -91,3 +91,26 @@ export async function listClientOverviews(): Promise<ClientOverview[]> {
 export function clientReady(client: Client | null): client is Client {
   return Boolean(client && client.active && client.chatbot_config.trim());
 }
+
+/** Tous les clients actifs, les plus anciennement modifiés d'abord. */
+export async function listActiveClients(): Promise<Client[]> {
+  const sql = getDb();
+  return (await sql`
+    select * from clients
+    where active = true
+    order by updated_at asc
+  `) as Client[];
+}
+
+/** Remplace uniquement la base de connaissances d'un client. */
+export async function updateClientKnowledgeBase(
+  id: string,
+  chatbotConfig: string
+): Promise<void> {
+  const sql = getDb();
+  await sql`
+    update clients
+    set chatbot_config = ${chatbotConfig}, updated_at = now()
+    where id = ${id}
+  `;
+}
