@@ -186,9 +186,9 @@
     "align-items:center",
     "gap:8px",
     "text-align:left",
-    // couleur des CONTOURS du client (= --sv-border côté iframe) ; mise à jour
-    // par applyAccent() quand /api/widget/<id> répond.
-    "background:" + ACCENT,
+    // fond principal du widget (= --sv-bg / background_color côté iframe) ;
+    // mis à jour par applyBackground() quand /api/widget/<id> répond.
+    "background:" + BG,
     "color:#fff",
     // pas de bordure, pas d'ombre, pas de lueur en état réduit
     "border:0",
@@ -287,9 +287,6 @@
   function applyAccent(color) {
     if (!color) return;
     ACCENT = color;
-    // La mini-barre réduite suit toujours la couleur des contours du client,
-    // qu'elle soit affichée ou non.
-    bar.style.background = ACCENT;
     if (!collapsed && outer.style.visibility === "visible") {
       inner.style.border = "1px solid " + ACCENT;
       outer.style.boxShadow = boxShadow();
@@ -301,6 +298,9 @@
   function applyBackground(color) {
     if (!color) return;
     BG = color;
+    // La mini-barre réduite suit toujours le fond principal du widget,
+    // qu'elle soit affichée ou non.
+    bar.style.background = BG;
     if (!collapsed && outer.style.visibility === "visible") {
       inner.style.background = BG;
     }
