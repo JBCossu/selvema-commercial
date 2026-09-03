@@ -186,7 +186,9 @@
     "align-items:center",
     "gap:8px",
     "text-align:left",
-    "background:#000",
+    // couleur des CONTOURS du client (= --sv-border côté iframe) ; mise à jour
+    // par applyAccent() quand /api/widget/<id> répond.
+    "background:" + ACCENT,
     "color:#fff",
     // pas de bordure, pas d'ombre, pas de lueur en état réduit
     "border:0",
@@ -285,6 +287,9 @@
   function applyAccent(color) {
     if (!color) return;
     ACCENT = color;
+    // La mini-barre réduite suit toujours la couleur des contours du client,
+    // qu'elle soit affichée ou non.
+    bar.style.background = ACCENT;
     if (!collapsed && outer.style.visibility === "visible") {
       inner.style.border = "1px solid " + ACCENT;
       outer.style.boxShadow = boxShadow();

@@ -324,16 +324,32 @@ export default function ChatWidget({
           )}
         </div>
 
+        {/* Bouton de fermeture : toujours visible et cliquable quelle que soit
+            l'étape (entrée, frappe, conversation longue). z-index maximal pour
+            ne jamais passer sous le personnage ou l'accroche, et pastille
+            semi-opaque pour rester lisible sur n'importe quel fond de zone
+            haute (--sv-top-bg clair comme foncé). */}
         <button
           aria-label="Fermer"
           onClick={closeWidget}
-          className="absolute right-1.5 top-1.5 text-white/70 transition-colors hover:text-white"
+          className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/45 text-white transition-colors hover:bg-black/70"
+          style={{
+            zIndex: 2147483647,
+            border: "1px solid rgba(255,255,255,0.25)",
+            pointerEvents: "auto",
+          }}
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            style={{ display: "block" }}
+          >
             <path
               d="M6 6l12 12M18 6L6 18"
               stroke="currentColor"
-              strokeWidth="2.4"
+              strokeWidth="2.6"
               strokeLinecap="round"
             />
           </svg>
