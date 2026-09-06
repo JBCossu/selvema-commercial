@@ -261,11 +261,13 @@ export default function DemoPage() {
       </footer>
 
       {/* ── Widget Selvema Commercial ───────────────────────────────
-          Intégration identique à celle d'un vrai site client : le script
-          charge le widget qui s'ouvre tout seul après ~2 s. */}
+          Intégration identique à celle d'un vrai site client. data-selvema-page
+          force le type de page (ici « home ») : sur un vrai site, l'URL « / »
+          suffirait, mais /demo a un chemin non racine. */}
       <Script
         src="/widget.js"
         data-selvema-client={DEMO_CLIENT_ID}
+        data-selvema-page="home"
         strategy="afterInteractive"
       />
     </div>

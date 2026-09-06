@@ -7,9 +7,15 @@ export const dynamic = "force-dynamic";
 export default async function EmbedPage({
   searchParams,
 }: {
-  searchParams: { c?: string };
+  searchParams: { c?: string; t?: string };
 }) {
   const clientId = typeof searchParams.c === "string" ? searchParams.c : "";
+  // Accroche contextuelle passée par widget.js (ex. page de bien). Prioritaire
+  // sur l'accroche configurée en base. Bornée pour éviter tout abus.
+  const taglineOverride =
+    typeof searchParams.t === "string" && searchParams.t.trim()
+      ? searchParams.t.trim().slice(0, 200)
+      : "";
 
   if (!clientId) {
     return (
@@ -36,6 +42,7 @@ export default async function EmbedPage({
     if (client?.agency_name) agencyName = client.agency_name;
     if (client?.tagline) tagline = client.tagline;
     if (client?.widget_color) borderColor = client.widget_color;
+    // (override d'accroche appliqué plus bas, après le bloc try)
     if (client?.background_color) bgColor = client.background_color;
     if (client?.bubble_color) bubbleColor = client.bubble_color;
     if (client?.tagline_color) taglineColor = client.tagline_color;
@@ -43,6 +50,8 @@ export default async function EmbedPage({
   } catch {
     ready = false;
   }
+
+  if (taglineOverride) tagline = taglineOverride;
 
   return (
     <div className="h-screen w-screen">

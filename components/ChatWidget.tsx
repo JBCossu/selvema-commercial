@@ -111,6 +111,7 @@ export default function ChatWidget({
   const [greetingTyping, setGreetingTyping] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const conversationStartedRef = useRef(false);
 
   useEffect(() => {
     try {
@@ -208,6 +209,20 @@ export default function ChatWidget({
   async function send() {
     const text = input.trim();
     if (!text || loading || !ready) return;
+
+    // Prévient widget.js (page hôte) qu'une conversation a commencé → il ne
+    // rouvrira plus le widget automatiquement de toute la session.
+    if (!conversationStartedRef.current) {
+      conversationStartedRef.current = true;
+      try {
+        window.parent?.postMessage(
+          { type: "selvema-conversation-started" },
+          "*"
+        );
+      } catch {
+        /* ignore */
+      }
+    }
 
     setInput("");
     setMessages((m) => [...m, { role: "user", content: text }]);

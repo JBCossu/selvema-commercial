@@ -9,7 +9,16 @@
  *    bordure, ni ombre, ni fond, ni lueur, ni poignée). Visibilité, bordure,
  *    fond et ombre ne sont posés qu'au tout début de showFrame(), en même
  *    temps que le zoom — jamais avant.
- *  - après ~2 s, la fenêtre surgit (zoom scale 0.5→1, 400ms ease-out) ; elle
+ *  - DÉCLENCHEMENT INTELLIGENT (100 % côté client, ici) :
+ *      • délai adaptatif selon le type de page : bien 4 s, accueil 2 s,
+ *        contact aucune ouverture auto (mini-barre seule).
+ *      • scroll rapide vers le bas → ouverture accélérée à 1 s.
+ *      • page de bien : accroche contextuelle « Ce bien vous intéresse ? … »
+ *        et garantie d'ouverture au-delà de 30 s.
+ *      • ne pas déranger : si le visiteur a fermé le widget (croix) OU a déjà
+ *        conversé, plus aucune ouverture auto de toute la session (sessionStorage).
+ *      Le type de page peut être forcé via data-selvema-page="property|home|contact".
+ *  - à l'ouverture, la fenêtre surgit (zoom scale 0.5→1, 400ms ease-out) ; elle
  *    signale alors à l'iframe (postMessage "selvema-frame-shown") pour lancer la
  *    séquence interne : le personnage monte, puis l'accroche s'écrit (machine à écrire)
  *  - le cadre flotte alors en boucle (translateY -12px ↔ 0, 2 s, ease-in-out)
@@ -56,6 +65,21 @@
   var BG = "#0a0a1a"; //     fond de la carte du client
   var TAGLINE = "Une question ? Je suis là pour vous aider.";
   var collapsed = false;
+
+  // Accroche contextuelle sur une page de bien.
+  var PROPERTY_TAGLINE =
+    "Ce bien vous intéresse ? Je peux répondre à vos questions.";
+  var taglineLocked = false; // vrai = page de bien, ne pas écraser via /api/widget
+
+  // « Ne pas déranger », par client et par session (origine du site client).
+  var KEY_DISMISSED = "selvema_dismissed_" + CLIENT_ID;
+  var KEY_CONVERSED = "selvema_conversed_" + CLIENT_ID;
+
+  // État du déclenchement.
+  var openTimer = null;
+  var autoOpened = false; // le widget a été ouvert automatiquement
+  var suppressed = false; // ne pas déranger (croix cliquée ou conversation eue)
+  var pageType = "other";
 
 
   function hexToRgba(hex, a) {
@@ -162,7 +186,8 @@
   ].join(";");
 
   var iframe = document.createElement("iframe");
-  iframe.src = ORIGIN + "/embed?c=" + encodeURIComponent(CLIENT_ID);
+  // .src est posé dans mount(), une fois le type de page détecté (l'accroche
+  // contextuelle d'une page de bien est passée en paramètre d'URL).
   iframe.title = "Assistant en ligne";
   iframe.setAttribute("allow", "clipboard-write");
   iframe.setAttribute("frameborder", "0"); // vieux navigateurs
@@ -277,6 +302,15 @@
 
   function collapse() {
     collapsed = true;
+    suppressed = true;
+    if (openTimer) {
+      clearTimeout(openTimer);
+      openTimer = null;
+    }
+    // Croix cliquée → plus aucune ouverture auto de toute la session.
+    try {
+      sessionStorage.setItem(KEY_DISMISSED, "1");
+    } catch (e) {}
     inner.style.opacity = "0";
     inner.style.transform = "scale(0.5)";
     // cadre entièrement invisible en état réduit — on retire TOUT ce qui peint
@@ -327,6 +361,17 @@
     if (ORIGIN && e.origin !== ORIGIN) return;
     var t = e.data && e.data.type;
     if (t === "selvema-widget-close") collapse();
+    if (t === "selvema-conversation-started") {
+      // Le visiteur a écrit un message → plus d'ouverture auto cette session.
+      suppressed = true;
+      if (openTimer) {
+        clearTimeout(openTimer);
+        openTimer = null;
+      }
+      try {
+        sessionStorage.setItem(KEY_CONVERSED, "1");
+      } catch (e2) {}
+    }
     // "selvema-widget-expand" : la fenêtre est déjà en grand, rien à faire.
   });
 
@@ -342,7 +387,7 @@
           if (!meta) return;
           if (meta.widget_color) applyAccent(meta.widget_color);
           if (meta.background_color) applyBackground(meta.background_color);
-          if (meta.tagline) {
+          if (meta.tagline && !taglineLocked) {
             TAGLINE = meta.tagline;
             barText.textContent = TAGLINE;
           }
@@ -351,14 +396,176 @@
     } catch (e) {}
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
+  //  DÉTECTION DU TYPE DE PAGE
+  // ─────────────────────────────────────────────────────────────────────────
+
+  function typeFromAttr() {
+    var v =
+      current &&
+      (current.getAttribute("data-selvema-page") || "").toLowerCase().trim();
+    if (v === "property" || v === "bien" || v === "annonce") return "property";
+    if (v === "contact") return "contact";
+    if (v === "home" || v === "accueil") return "home";
+    return "";
+  }
+
+  function typeFromUrl() {
+    var p = (location.pathname || "/").toLowerCase();
+    if (
+      /(^|\/)(contact|contacts|nous-contacter|contactez[-\w]*|contact-us)(\/|$|\.)/.test(
+        p
+      )
+    )
+      return "contact";
+    if (
+      /(^|\/)(bien|biens|annonce|annonces|propriete|proprietes|property|properties|listing|listings|a-vendre|a-louer|maison|appartement|estimation|ref)(\/|-|_|$)/.test(
+        p
+      ) ||
+      /\/\d{4,}(\/|$|[-_])/.test(p) // identifiant numérique de bien dans l'URL
+    )
+      return "property";
+    if (p === "/" || p === "" || /(^|\/)(index|accueil|home)(\.[a-z0-9]+)?$/.test(p))
+      return "home";
+    return "";
+  }
+
+  function typeFromMarkup() {
+    try {
+      var nodes = document.querySelectorAll(
+        'script[type="application/ld+json"]'
+      );
+      for (var i = 0; i < nodes.length; i++) {
+        if (
+          /"@type"\s*:\s*"(RealEstateListing|Residence|Apartment|House|SingleFamilyResidence|Accommodation|Offer|Product)"/i.test(
+            nodes[i].textContent || ""
+          )
+        )
+          return "property";
+      }
+    } catch (e) {}
+    var og = document.querySelector('meta[property="og:type"]');
+    if (og) {
+      var c = (og.getAttribute("content") || "").toLowerCase();
+      if (c === "product" || c === "article" || c.indexOf("realestate") !== -1)
+        return "property";
+    }
+    // Heuristique de contenu : un prix ET (une surface OU un nombre de pièces).
+    try {
+      var txt = (
+        (document.body && document.body.innerText) ||
+        ""
+      ).slice(0, 5000);
+      var hasPrice = /\d[\d\s.]{2,}\s?(€|eur\b|euros)/i.test(
+        document.title + " " + txt
+      );
+      var hasArea = /\d+\s?m(²|2|²)\b/i.test(txt);
+      var hasRooms = /\b\d+\s?(pi[eè]ces?|chambres?|t\d|f\d)\b/i.test(txt);
+      if (hasPrice && (hasArea || hasRooms)) return "property";
+    } catch (e) {}
+    return "";
+  }
+
+  function detectPageType() {
+    return typeFromAttr() || typeFromUrl() || typeFromMarkup() || "other";
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  //  ORDONNANCEMENT DE L'OUVERTURE
+  // ─────────────────────────────────────────────────────────────────────────
+
+  function scheduleOpen(ms) {
+    if (suppressed || autoOpened) return;
+    if (openTimer) clearTimeout(openTimer);
+    openTimer = setTimeout(function () {
+      openTimer = null;
+      if (suppressed || autoOpened || collapsed) return;
+      autoOpened = true;
+      showFrame();
+    }, Math.max(0, ms));
+  }
+
+  // Scroll rapide vers le bas : ~700 px de descente cumulée en moins de 700 ms.
+  var lastScrollY = 0,
+    scrollWinStart = 0,
+    scrollAccum = 0,
+    fastScrollDone = false;
+  function onScroll() {
+    if (fastScrollDone || suppressed || autoOpened) return;
+    var y = window.pageYOffset || document.documentElement.scrollTop || 0;
+    var dy = y - lastScrollY;
+    lastScrollY = y;
+    if (dy <= 0) return;
+    var now = Date.now();
+    if (now - scrollWinStart > 700) {
+      scrollWinStart = now;
+      scrollAccum = 0;
+    }
+    scrollAccum += dy;
+    if (scrollAccum >= 700) {
+      fastScrollDone = true;
+      window.removeEventListener("scroll", onScroll);
+      scheduleOpen(1000); // il cherche quelque chose → on ouvre vite
+    }
+  }
+
   function mount() {
     document.body.appendChild(outer);
     document.body.appendChild(bar);
+
+    // Ne pas déranger : croix déjà cliquée OU conversation déjà eue cette session.
+    try {
+      if (
+        sessionStorage.getItem(KEY_DISMISSED) === "1" ||
+        sessionStorage.getItem(KEY_CONVERSED) === "1"
+      )
+        suppressed = true;
+    } catch (e) {}
+
+    pageType = detectPageType();
+
+    // URL de l'iframe : accroche contextuelle si page de bien.
+    var src = ORIGIN + "/embed?c=" + encodeURIComponent(CLIENT_ID);
+    if (pageType === "property") {
+      src += "&t=" + encodeURIComponent(PROPERTY_TAGLINE);
+      TAGLINE = PROPERTY_TAGLINE;
+      taglineLocked = true;
+      barText.textContent = TAGLINE;
+    }
+    iframe.src = src;
+
     loadMeta();
 
-    // Ouverture automatique après 2 s — aucun clic nécessaire, toujours.
-    setTimeout(showFrame, 2000);
+    // Ne pas déranger → aucune ouverture auto ; on montre juste la mini-barre
+    // comme point d'entrée discret.
+    if (suppressed) {
+      setTimeout(showBar, 800);
+      return;
+    }
+
+    // Page contact → pas d'ouverture auto (il est déjà en train de nous joindre).
+    if (pageType === "contact") {
+      setTimeout(showBar, 1200);
+      return;
+    }
+
+    // Délai adaptatif : bien 4 s, accueil / autre 2 s.
+    scheduleOpen(pageType === "property" ? 4000 : 2000);
+
+    // Scroll rapide → ouverture accélérée à 1 s.
+    lastScrollY = window.pageYOffset || document.documentElement.scrollTop || 0;
+    scrollWinStart = Date.now();
+    window.addEventListener("scroll", onScroll, { passive: true });
+
+    // Page de bien : au-delà de 30 s sur la page, garantir l'ouverture
+    // (l'accroche « Ce bien vous intéresse ? » est déjà en place).
+    if (pageType === "property") {
+      setTimeout(function () {
+        scheduleOpen(0);
+      }, 30000);
+    }
   }
+
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", mount);
   } else {
