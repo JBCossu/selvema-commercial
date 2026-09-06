@@ -3,9 +3,16 @@ import { notFound } from "next/navigation";
 import AdminHeader from "@/components/AdminHeader";
 import CopyButton from "@/components/CopyButton";
 import LeadsTable from "@/components/LeadsTable";
+import AnalyticsFunnel from "@/components/AnalyticsFunnel";
 import { getClient, getDb } from "@/lib/db";
 import type { Lead } from "@/lib/db";
 import { integrationSnippet } from "@/lib/widget";
+import {
+  getClientFunnel,
+  isFunnelPeriod,
+  type ClientFunnel,
+  type FunnelPeriod,
+} from "@/lib/analytics";
 
 export const dynamic = "force-dynamic";
 
@@ -29,9 +36,15 @@ function Info({ label, value }: { label: string; value: string }) {
 
 export default async function ClientPage({
   params,
+  searchParams,
 }: {
   params: { id: string };
+  searchParams: { period?: string };
 }) {
+  const period: FunnelPeriod = isFunnelPeriod(searchParams.period)
+    ? searchParams.period
+    : "mois";
+
   let client;
   try {
     client = await getClient(params.id);
@@ -53,6 +66,13 @@ export default async function ClientPage({
     leads = await loadLeads(client.id);
   } catch {
     leadsError = true;
+  }
+
+  let funnel: ClientFunnel | null = null;
+  try {
+    funnel = await getClientFunnel(client.id, period);
+  } catch {
+    funnel = null;
   }
 
   const snippet = integrationSnippet(client.id);
@@ -91,6 +111,19 @@ export default async function ClientPage({
           {leads.length} lead{leads.length > 1 ? "s" : ""} au total · {leadsThisMonth}{" "}
           ce mois
         </p>
+
+        {/* Analytique — funnel */}
+        {funnel ? (
+          <AnalyticsFunnel
+            clientId={client.id}
+            period={funnel.period}
+            stages={funnel.stages}
+          />
+        ) : (
+          <section className="mt-6 rounded-2xl border border-[#882de1] bg-black p-6 text-sm text-white/50">
+            Analytique momentanément indisponible.
+          </section>
+        )}
 
         {/* Configuration */}
         <section className="mt-8 rounded-2xl border border-[#882de1] bg-black p-6">
