@@ -11,6 +11,7 @@ export type ClientFields = {
   owner_phone: string;
   site_url: string;
   chatbot_config: string;
+  qualification_rules: string;
   tagline: string;
   // Couleurs du widget.
   widget_color: string; //     contours
@@ -40,10 +41,18 @@ const EMPTY: ClientFields = {
   owner_phone: "",
   site_url: "",
   chatbot_config: "",
+  qualification_rules: "",
   tagline: DEFAULT_TAGLINE,
   ...DEFAULT_COLORS,
   active: true,
 };
+
+const RULES_PLACEHOLDER = `Budget minimum accepté : 200 000 €
+Budget maximum : (optionnel)
+Zones géographiques prioritaires : Lyon 6e, Villeurbanne, Caluire
+Types de projets acceptés : achat, vente, investissement, estimation
+Délai maximum accepté : 12 mois
+Critères éliminatoires : budget inférieur à 150 000 € = prospect non transmis ; secteur hors agglomération lyonnaise = prospect non transmis`;
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
 
@@ -287,6 +296,30 @@ export default function ClientForm({
             placeholder={
               "## Description de l'agence\n…\n\n## Services\n- …\n\n## Zones couvertes\n…\n\n## Biens disponibles\n- …\n\n## FAQ probable\nQ : …\nR : …"
             }
+          />
+        </Field>
+      </section>
+
+      {/* Règles de qualification */}
+      <section className="space-y-4 rounded-2xl border border-[#882de1] bg-black p-6">
+        <h2 className="text-lg font-semibold">Règles de qualification</h2>
+        <p className="text-xs text-white/40">
+          Critères propres à cette agence pour décider si un prospect doit être
+          transmis. Ces règles sont transmises à l'assistant : elles pèsent sur
+          le score du prospect, et un visiteur qui exprime clairement un projet
+          hors critères se voit répondre honnêtement sans qu'on lui demande ses
+          coordonnées.
+        </p>
+        <Field
+          label="Règles commerciales"
+          hint="Budget min / max, zones prioritaires, types de projets acceptés, délai maximum, critères éliminatoires. Une ligne par règle."
+        >
+          <textarea
+            rows={8}
+            className="field font-mono text-[13px] leading-relaxed"
+            value={state.qualification_rules}
+            onChange={(e) => set("qualification_rules", e.target.value)}
+            placeholder={RULES_PLACEHOLDER}
           />
         </Field>
       </section>

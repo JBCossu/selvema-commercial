@@ -130,6 +130,12 @@ export default async function ClientPage({
                 value={client.chatbot_config}
               />
             </div>
+            <div className="sm:col-span-2">
+              <Info
+                label="Règles de qualification"
+                value={client.qualification_rules}
+              />
+            </div>
           </dl>
           <p className="mt-4 text-xs text-white/40">
             Le comportement de l'assistant (ton, périmètre immobilier,

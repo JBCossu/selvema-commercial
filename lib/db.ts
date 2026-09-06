@@ -19,6 +19,7 @@ export type Client = {
   active: boolean;
   site_url: string;
   chatbot_config: string; // prompt "base de connaissances" propre au client
+  qualification_rules: string; // règles de qualification de l'agence (texte libre)
   tagline: string;
   // Couleurs du widget.
   widget_color: string; //     contours : bords/bordures du widget
@@ -76,6 +77,10 @@ export type LeadScoreBreakdown = {
   delai_court: LeadScoreCriterion;
   intention_forte: LeadScoreCriterion;
   analyse?: string;
+  // Renseigné si le projet enfreint les règles de qualification de l'agence :
+  // le score est alors plafonné très bas.
+  hors_criteres?: boolean;
+  motif_hors_criteres?: string;
 };
 
 /** Ligne enrichie pour les cards du dashboard. */

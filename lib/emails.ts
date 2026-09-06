@@ -73,9 +73,13 @@ function scoreBlock(p: Lead): string {
         )
         .join("")
     : "";
+  const horsCriteres = b?.hors_criteres
+    ? `<p style="margin:8px 0 0;font-size:12px;font-weight:700;color:${SCORE_META.faible.color};">Hors critères de qualification de l'agence${b.motif_hors_criteres ? ` : ${escapeHtml(b.motif_hors_criteres)}` : ""}</p>`
+    : "";
   return `
     <div style="margin:0 0 18px;padding:14px 16px;border-radius:12px;background:#12121c;border:1px solid ${m.color}55;">
       <div style="font-size:16px;font-weight:700;color:${m.color};">${m.emoji} Score ${p.score}/100 · ${m.label}</div>
+      ${horsCriteres}
       ${b?.analyse ? `<p style="margin:8px 0 0;font-size:13px;color:#c9c9d4;line-height:1.5;">${escapeHtml(b.analyse)}</p>` : ""}
       ${lines ? `<table style="border-collapse:collapse;width:100%;margin-top:10px;">${lines}</table>` : ""}
     </div>`;

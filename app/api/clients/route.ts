@@ -51,6 +51,7 @@ export async function POST(request: Request) {
   const owner_phone = field(body, "owner_phone");
   const site_url = field(body, "site_url");
   const chatbot_config = field(body, "chatbot_config");
+  const qualification_rules = field(body, "qualification_rules");
   const tagline = field(body, "tagline") || DEFAULT_TAGLINE;
   const widget_color = normColor(field(body, "widget_color"), DEFAULT_COLORS.widget_color);
   const background_color = normColor(field(body, "background_color"), DEFAULT_COLORS.background_color);
@@ -76,12 +77,12 @@ export async function POST(request: Request) {
     const rows = (await sql`
       insert into clients
         (agency_name, owner_email, owner_phone, site_url, chatbot_config,
-         tagline, widget_color, background_color, bubble_color, tagline_color,
-         top_bg_color)
+         qualification_rules, tagline, widget_color, background_color,
+         bubble_color, tagline_color, top_bg_color)
       values
         (${agency_name}, ${owner_email}, ${owner_phone}, ${site_url},
-         ${chatbot_config}, ${tagline}, ${widget_color}, ${background_color},
-         ${bubble_color}, ${tagline_color}, ${top_bg_color})
+         ${chatbot_config}, ${qualification_rules}, ${tagline}, ${widget_color},
+         ${background_color}, ${bubble_color}, ${tagline_color}, ${top_bg_color})
       returning *
     `) as Client[];
     const client = rows[0];

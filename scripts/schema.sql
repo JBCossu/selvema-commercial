@@ -28,6 +28,11 @@ alter table clients add column if not exists background_color text not null defa
 alter table clients add column if not exists bubble_color     text not null default '#882de1'; -- fond des bulles de l'assistant (texte blanc)
 alter table clients add column if not exists tagline_color    text not null default '#ffffff'; -- texte de la phrase d'accroche (zone 20 %)
 alter table clients add column if not exists top_bg_color     text not null default '#000000'; -- fond de la zone haute personnage (20 %)
+
+-- Règles de qualification propres à l'agence (budget min/max, zones, types de
+-- projets, délai max, critères éliminatoires). Texte libre injecté dans la base
+-- de connaissances : sert au chatbot (refus honnête hors critères) et au scoring.
+alter table clients add column if not exists qualification_rules text not null default '';
 -- character_color : ajoutée puis abandonnée. Colonne conservée si elle existe, plus utilisée.
 
 -- Colonnes de la v1 devenues inutilisées (la "section Compléments" a été retirée

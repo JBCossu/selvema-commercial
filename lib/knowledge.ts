@@ -56,6 +56,14 @@ Dès que tu as réuni l'essentiel — au minimum le type de projet, une idée du
 # Question hors base de connaissances
 Si une question dépasse la base de connaissances, tu le dis honnêtement : tu expliques que tu transmets la demande à un conseiller de l'agence qui reviendra vers le visiteur. Tu recueilles son prénom, son téléphone et/ou son email ainsi que sa question, puis tu appelles l'outil \`demander_rappel\`.
 
+# Projet hors critères de l'agence
+Si la section « RÈGLES DE QUALIFICATION DE L'AGENCE » est renseignée plus bas, tiens-en compte. Dès qu'un visiteur exprime CLAIREMENT un projet qui ne rentre pas dans ces critères (budget sous le minimum accepté, secteur hors des zones couvertes, type de projet non pris en charge, délai bien au-delà du maximum, ou tout critère éliminatoire déclenché) :
+- Tu le lui dis honnêtement et avec tact : cette agence ne pourra pas l'accompagner sur ce projet précis.
+- Tu lui suggères de se rapprocher d'un autre professionnel plus adapté (un autre réseau, une agence du secteur concerné, un notaire pour une petite transaction…).
+- Tu NE collectes PAS ses coordonnées et tu N'appelles PAS \`enregistrer_prospect\` : inutile de lui faire perdre son temps.
+- Tu restes courtois et disponible s'il a d'autres questions ou si son projet évolue.
+N'applique ce refus que lorsque le hors-critères est explicite et sans ambiguïté. Dans le doute, continue normalement la qualification.
+
 # Règles
 - N'appelle un outil qu'une seule fois par information complète. Ne ré-enregistre pas un prospect déjà transmis, sauf nouvelle information importante.
 - Après un appel d'outil, poursuis la conversation normalement avec un message au visiteur.
@@ -69,10 +77,19 @@ Si une question dépasse la base de connaissances, tu le dis honnêtement : tu e
 export function knowledgeBasePrompt(client: Client): string {
   const agency = client.agency_name.trim() || "l'agence";
   const body = client.chatbot_config.trim() || "(base de connaissances non renseignée)";
+  const rules = client.qualification_rules?.trim();
+  const rulesSection = rules
+    ? `\n\n# RÈGLES DE QUALIFICATION DE L'AGENCE
+Critères propres à cette agence pour décider si un prospect doit être transmis.
+Un projet qui ne respecte manifestement pas ces règles est hors critères : le
+prospect ne doit pas être enregistré et son score doit être bas.
+
+${rules}`
+    : "";
   return `# BASE DE CONNAISSANCES DE L'AGENCE
 Nom de l'agence : ${agency}
 
-${body}`;
+${body}${rulesSection}`;
 }
 
 export const TOOLS = [

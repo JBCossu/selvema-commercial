@@ -289,6 +289,14 @@ export default function LeadsTable({ leads: initial }: { leads: Lead[] }) {
                             {lead.score}/100 ·{" "}
                             {SCORE_META[lead.score_category].label}
                           </div>
+                          {lead.score_breakdown.hors_criteres && (
+                            <p className="mb-1.5 text-xs font-semibold text-[#ef4444]">
+                              Hors critères de l'agence
+                              {lead.score_breakdown.motif_hors_criteres
+                                ? ` : ${lead.score_breakdown.motif_hors_criteres}`
+                                : ""}
+                            </p>
+                          )}
                           {lead.score_breakdown.analyse && (
                             <p className="mb-2 text-xs text-white/60">
                               {lead.score_breakdown.analyse}

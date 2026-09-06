@@ -51,6 +51,7 @@ export default async function EditClientPage({
               owner_phone: client.owner_phone,
               site_url: client.site_url,
               chatbot_config: client.chatbot_config,
+              qualification_rules: client.qualification_rules,
               tagline: client.tagline,
               widget_color: client.widget_color,
               background_color: client.background_color,
