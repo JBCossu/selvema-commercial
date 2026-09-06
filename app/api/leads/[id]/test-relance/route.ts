@@ -55,15 +55,6 @@ export async function POST(
   if (!r) {
     return NextResponse.json({ error: "Lead introuvable." }, { status: 404 });
   }
-  if (!r.email) {
-    return NextResponse.json(
-      {
-        error:
-          "Ce lead n'a pas d'adresse email — impossible d'envoyer une relance.",
-      },
-      { status: 400 }
-    );
-  }
 
   const client: MailClient = {
     id: r.c_id,
@@ -75,18 +66,23 @@ export async function POST(
   try {
     const resend = getResend();
 
-    // Relance au prospect (au nom de l'agence). Préfixe [TEST] pour lever
-    // toute ambiguïté côté destinataire.
-    const mail = followUpEmail(client, r, step);
-    await resend.emails.send({
-      from: fromWithName(client.agency_name),
-      to: r.email,
-      replyTo: client.owner_email,
-      subject: `[TEST] ${mail.subject}`,
-      html: mail.html,
-    });
+    // TEMPORAIRE (tests internes) : le bouton est cliquable quel que soit le
+    // statut du lead et même sans email prospect. Si le lead a un email, on
+    // envoie la relance au prospect ; dans tous les cas on envoie la
+    // notification au dirigeant. Préfixe [TEST] côté destinataires.
+    let prospectSent = false;
+    if (r.email) {
+      const mail = followUpEmail(client, r, step);
+      await resend.emails.send({
+        from: fromWithName(client.agency_name),
+        to: r.email,
+        replyTo: client.owner_email,
+        subject: `[TEST] ${mail.subject}`,
+        html: mail.html,
+      });
+      prospectSent = true;
+    }
 
-    // Notification au dirigeant, comme pour une vraie relance.
     const notice = followUpNotice(client, r, step);
     await resend.emails.send({
       from: FROM_EMAIL,
@@ -98,9 +94,12 @@ export async function POST(
     return NextResponse.json({
       ok: true,
       step,
-      to: r.email,
+      to: r.email ?? null,
+      prospect_sent: prospectSent,
       notice_to: client.owner_email,
-      note: "Test — l'état du lead n'a pas été modifié.",
+      note: prospectSent
+        ? "Test — l'état du lead n'a pas été modifié."
+        : "Test — lead sans email : seule la notification au dirigeant a été envoyée.",
     });
   } catch (err) {
     console.error("test-relance error", err);

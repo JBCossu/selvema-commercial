@@ -122,11 +122,16 @@ export default function ChatWidget({
   }, [storageKey]);
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({
-      top: scrollRef.current.scrollHeight,
-      behavior: "smooth",
+    const el = scrollRef.current;
+    if (!el) return;
+    // Pendant la frappe du message de bienvenue, défilement instantané : un
+    // scroll « smooth » relancé à chaque lettre puis stabilisé à la fin peut
+    // faire « sauter » la bulle. En conversation normale, on garde le smooth.
+    el.scrollTo({
+      top: el.scrollHeight,
+      behavior: greetingTyping ? "auto" : "smooth",
     });
-  }, [messages, loading]);
+  }, [messages, loading, greetingTyping]);
 
   // Séquence d'entrée, calée sur l'apparition du cadre (~2000 ms après le
   // chargement de l'iframe) :
@@ -392,7 +397,22 @@ export default function ChatWidget({
                   }
                 >
                   {m.content}
-                  {isTypingBubble && <span className="selvema-caret">|</span>}
+                  {isTypingBubble && (
+                    // Curseur sans emprise sur la mise en page : largeur 0 +
+                    // overflow visible → il ne provoque aucun retour à la ligne
+                    // et sa disparition en fin de frappe ne change pas d'un
+                    // pixel la taille de la bulle (pas de flash, pas de saut).
+                    <span
+                      className="selvema-caret"
+                      style={{
+                        display: "inline-block",
+                        width: 0,
+                        overflow: "visible",
+                      }}
+                    >
+                      |
+                    </span>
+                  )}
                 </div>
               </div>
             );

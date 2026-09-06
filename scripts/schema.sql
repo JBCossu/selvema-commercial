@@ -78,6 +78,13 @@ create table if not exists leads (
 -- dirigeant, sans page web ni suivi en base). Colonnes laissées si elles
 -- existent, plus lues.
 
+-- Scoring automatique du prospect (0..100), calculé par l'API Anthropic à la
+-- création de la fiche puis recalculé à chaque nouveau message.
+alter table leads add column if not exists score            int;         -- 0..100, null tant que non calculé
+alter table leads add column if not exists score_category   text;        -- 'haute' | 'a_suivre' | 'faible'
+alter table leads add column if not exists score_breakdown  jsonb;       -- détail des points par critère
+alter table leads add column if not exists score_updated_at timestamptz;
+
 create index if not exists leads_client_created_idx on leads (client_id, created_at desc);
 create index if not exists leads_status_idx on leads (status);
 create index if not exists conversations_client_idx on conversations (client_id);

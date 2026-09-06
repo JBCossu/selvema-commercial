@@ -4,6 +4,7 @@ import type { Client, ChatMessage, Lead } from "@/lib/db";
 import { runChat, type ToolCall } from "@/lib/anthropic";
 import { getResend, FROM_EMAIL } from "@/lib/resend";
 import { prospectEmail, callbackEmail } from "@/lib/emails";
+import { scoreConversation } from "@/lib/scoring";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -118,20 +119,75 @@ export async function POST(request: Request) {
   // Traitement des outils : création du lead + email au dirigeant
   for (const call of toolCalls) {
     try {
-      await handleToolCall(sql, client, convId, call);
+      await handleToolCall(sql, client, convId, call, updated);
     } catch (err) {
       console.error("tool handling error", call.name, err);
+    }
+  }
+
+  // Scoring : recalculé à CHAQUE message. Si un lead qualifié existe déjà pour
+  // cette conversation et qu'aucun n'a été créé à ce tour (déjà scoré dans
+  // handleToolCall), on met son score à jour à partir de la conversation
+  // complète. Best-effort : une erreur de scoring ne casse jamais le chat.
+  if (!qualified) {
+    try {
+      await rescoreConversationLead(sql, client, convId, updated);
+    } catch (err) {
+      console.error("rescore error", err);
     }
   }
 
   return NextResponse.json({ conversationId: convId, reply });
 }
 
+/** Calcule le score et l'enregistre sur un lead donné. */
+async function applyScore(
+  sql: ReturnType<typeof getDb>,
+  client: Client,
+  leadId: string,
+  messages: ChatMessage[]
+): Promise<Partial<Lead>> {
+  const { score, category, breakdown } = await scoreConversation(client, messages);
+  await sql`
+    update leads
+    set score = ${score},
+        score_category = ${category},
+        score_breakdown = ${JSON.stringify(breakdown)}::jsonb,
+        score_updated_at = now()
+    where id = ${leadId}
+  `;
+  return {
+    score,
+    score_category: category,
+    score_breakdown: breakdown,
+    score_updated_at: new Date().toISOString(),
+  };
+}
+
+/** Re-score le lead qualifié rattaché à la conversation (s'il existe). */
+async function rescoreConversationLead(
+  sql: ReturnType<typeof getDb>,
+  client: Client,
+  conversationId: string,
+  messages: ChatMessage[]
+) {
+  const rows = (await sql`
+    select id from leads
+    where conversation_id = ${conversationId}
+      and client_id = ${client.id}
+      and kind = 'qualifie'
+    order by created_at asc
+    limit 1
+  `) as { id: string }[];
+  if (rows[0]) await applyScore(sql, client, rows[0].id, messages);
+}
+
 async function handleToolCall(
   sql: ReturnType<typeof getDb>,
   client: Client,
   conversationId: string,
-  call: ToolCall
+  call: ToolCall,
+  messages: ChatMessage[]
 ) {
   const i = call.input;
 
@@ -148,11 +204,19 @@ async function handleToolCall(
       returning *
     `) as Lead[];
 
-    const { subject, html } = prospectEmail(client, rows[0]);
+    let lead = rows[0];
+    // Score à la création de la fiche, pour qu'il figure dans l'email dirigeant.
+    try {
+      lead = { ...lead, ...(await applyScore(sql, client, lead.id, messages)) };
+    } catch (err) {
+      console.error("scoring at creation error", err);
+    }
+
+    const { subject, html } = prospectEmail(client, lead);
     await getResend().emails.send({
       from: FROM_EMAIL,
       to: client.owner_email,
-      replyTo: rows[0].email ?? undefined,
+      replyTo: lead.email ?? undefined,
       subject,
       html,
     });

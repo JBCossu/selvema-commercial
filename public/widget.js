@@ -4,10 +4,11 @@
  *   <script src="https://VOTRE-DOMAINE/widget.js" data-selvema-client="ID" async></script>
  *
  * Comportement :
- *  - AVANT l'animation : le cadre est 100 % invisible — visibility:hidden +
- *    opacity:0 + pointer-events:none ET aucun style peignable (ni bordure, ni
- *    ombre, ni fond, ni lueur, ni poignée). Ces styles ne sont posés qu'au
- *    tout début de showFrame(), en même temps que le zoom.
+ *  - AVANT l'animation : outer, inner ET iframe sont chacun en opacity:0 +
+ *    visibility:hidden + pointer-events:none, sans aucun style peignable (ni
+ *    bordure, ni ombre, ni fond, ni lueur, ni poignée). Visibilité, bordure,
+ *    fond et ombre ne sont posés qu'au tout début de showFrame(), en même
+ *    temps que le zoom — jamais avant.
  *  - après ~2 s, la fenêtre surgit (zoom scale 0.5→1, 400ms ease-out) ; elle
  *    signale alors à l'iframe (postMessage "selvema-frame-shown") pour lancer la
  *    séquence interne : le personnage monte, puis l'accroche s'écrit (machine à écrire)
@@ -93,16 +94,20 @@
     ".selvema-frame-inner{transition:none !important}}";
   document.head.appendChild(style);
 
-  // ── AVANT L'ANIMATION : les 3 éléments (outer, inner, iframe) n'ont AUCUN
-  //    élément peignable. On l'impose explicitement sur chacun, dès leur
-  //    création : border:none + box-shadow:none + outline:none +
-  //    background:transparent. Rien ne peut donc laisser de contour avant que
-  //    showFrame() ne (re)pose bordure / fond / ombre, en même temps que le zoom.
+  // ── AVANT L'ANIMATION : les 3 éléments (outer, inner, iframe) sont
+  //    TOTALEMENT invisibles et n'ont AUCUN élément peignable. On l'impose
+  //    explicitement sur chacun, dès leur création : opacity:0 +
+  //    visibility:hidden + border:none + box-shadow:none + outline:none +
+  //    background:transparent. Rien — pas même un contour d'iframe rendu dans
+  //    son propre calque — ne peut apparaître avant que showFrame() ne (re)pose
+  //    bordure / fond / ombre / visibilité, en même temps que le zoom.
   function killPaint(el) {
     el.style.border = "none";
     el.style.boxShadow = "none";
     el.style.outline = "none";
     el.style.background = "transparent";
+    el.style.opacity = "0";
+    el.style.visibility = "hidden";
   }
 
   // ---- Fenêtre : externe = position + flottaison + redimensionnement,
@@ -144,12 +149,13 @@
     "height:100%",
     "border-radius:16px",
     "overflow:hidden",
-    // rien de peignable avant showFrame
+    // rien de peignable ni de visible avant showFrame
     "background:transparent",
     "border:none",
     "box-shadow:none",
     "outline:none",
     "opacity:0",
+    "visibility:hidden",
     "transform:scale(0.5)",
     "transform-origin:100% 100%",
     "transition:opacity .4s ease-out, transform .4s ease-out",
@@ -160,9 +166,13 @@
   iframe.title = "Assistant en ligne";
   iframe.setAttribute("allow", "clipboard-write");
   iframe.setAttribute("frameborder", "0"); // vieux navigateurs
+  // opacity:0 + visibility:hidden POSÉS DIRECTEMENT sur l'iframe : certains
+  // navigateurs composent l'iframe dans son propre calque et peuvent la laisser
+  // « percer » un parent en opacity:0 le temps d'une frame au premier rendu.
   iframe.style.cssText =
     "width:100%;height:100%;display:block;" +
-    "border:none;box-shadow:none;outline:none;background:transparent";
+    "border:none;box-shadow:none;outline:none;background:transparent;" +
+    "opacity:0;visibility:hidden;transition:opacity .4s ease-out";
 
   // Ré-assertion explicite, élément par élément (ceinture + bretelles).
   killPaint(outer);
@@ -244,13 +254,17 @@
     inner.style.background = BG;
     outer.style.boxShadow = boxShadow();
     outer.style.animation = "selvema-float 2s ease-in-out infinite";
+    // visibilité (re)posée ICI sur les 3 éléments, jamais avant.
     outer.style.visibility = "visible";
+    inner.style.visibility = "visible";
+    iframe.style.visibility = "visible";
     outer.style.pointerEvents = "auto";
     outer.style.resize = "both";
     // reflow avant de lancer l'opacité/zoom pour que la transition joue
     void outer.offsetWidth;
     outer.style.opacity = "1";
     inner.style.opacity = "1";
+    iframe.style.opacity = "1";
     inner.style.transform = "scale(1)";
     // Signale à l'iframe que le cadre est affiché → déclenche la séquence
     // d'animation interne (personnage puis accroche).
@@ -268,6 +282,9 @@
     // cadre entièrement invisible en état réduit — on retire TOUT ce qui peint
     inner.style.border = "0";
     inner.style.background = "transparent";
+    inner.style.visibility = "hidden";
+    iframe.style.opacity = "0";
+    iframe.style.visibility = "hidden";
     outer.style.opacity = "0";
     outer.style.visibility = "hidden";
     outer.style.pointerEvents = "none";

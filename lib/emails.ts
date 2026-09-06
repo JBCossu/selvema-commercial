@@ -1,5 +1,6 @@
 import type { Client, Lead } from "./db";
 import { APP_URL } from "./resend";
+import { SCORE_META } from "./score-meta";
 
 export type MailClient = Pick<
   Client,
@@ -48,11 +49,44 @@ export function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
+/** Bloc « Score commercial » pour la fiche prospect. */
+function scoreBlock(p: Lead): string {
+  if (typeof p.score !== "number" || !p.score_category) return "";
+  const m = SCORE_META[p.score_category];
+  const b = p.score_breakdown;
+  const lines = b
+    ? (
+        [
+          b.budget_coherent,
+          b.zone_couverte,
+          b.projet_clair,
+          b.delai_court,
+          b.intention_forte,
+        ] as { label: string; ok: boolean; points: number }[]
+      )
+        .map(
+          (c) =>
+            `<tr>
+              <td style="padding:3px 10px 3px 0;font-size:12px;color:${c.ok ? "#e6e6ef" : "#6b6b7a"};">${c.ok ? "✓" : "·"} ${escapeHtml(c.label)}</td>
+              <td style="padding:3px 0;font-size:12px;text-align:right;color:${c.ok ? "#e6e6ef" : "#6b6b7a"};white-space:nowrap;">+${c.points}</td>
+            </tr>`
+        )
+        .join("")
+    : "";
+  return `
+    <div style="margin:0 0 18px;padding:14px 16px;border-radius:12px;background:#12121c;border:1px solid ${m.color}55;">
+      <div style="font-size:16px;font-weight:700;color:${m.color};">${m.emoji} Score ${p.score}/100 · ${m.label}</div>
+      ${b?.analyse ? `<p style="margin:8px 0 0;font-size:13px;color:#c9c9d4;line-height:1.5;">${escapeHtml(b.analyse)}</p>` : ""}
+      ${lines ? `<table style="border-collapse:collapse;width:100%;margin-top:10px;">${lines}</table>` : ""}
+    </div>`;
+}
+
 /** Fiche prospect qualifiée envoyée au dirigeant du client. */
 export function prospectEmail(client: MailClient, p: Lead) {
   const inner = `
     <h1 style="font-size:20px;margin:12px 0 4px;color:#fff;">Nouveau prospect qualifié</h1>
     <p style="color:#c9c9d4;font-size:14px;margin:0 0 18px;">Recueilli par l'assistant en ligne de ${escapeHtml(client.agency_name)}.</p>
+    ${scoreBlock(p)}
     ${p.summary ? `<p style="background:#12121c;border-left:3px solid #882de1;padding:12px 14px;border-radius:8px;color:#e6e6ef;font-size:14px;margin:0 0 18px;">${escapeHtml(p.summary)}</p>` : ""}
     <table style="border-collapse:collapse;width:100%;">
       ${row("Projet", p.project_type)}
@@ -132,58 +166,68 @@ export function followUpEmail(client: MailClient, p: Lead, step: 3 | 7) {
   const firstName = p.name ? p.name.split(" ")[0] : "";
   const hi = firstName ? `Bonjour ${escapeHtml(firstName)}.` : "Bonjour.";
   const to = client.owner_email;
-  const par = (t: string) =>
-    `<p style="color:#e6e6ef;font-size:14px;line-height:1.7;margin:0 0 14px;">${t}</p>`;
 
-  let body: string;
+  let paragraphs: string[];
   let yesBody: string;
   let noBody: string;
 
   if (step === 3) {
     yesBody = `Bonjour, oui je souhaite qu'un conseiller m'appelle.\n\nMerci,\n${firstName}`.trim();
     noBody = `Bonjour, je vous remercie mais je ne souhaite pas être contacté pour le moment.\n\nBonne journée,\n${firstName}`.trim();
-    body = `
-      ${par(hi)}
-      ${par(
-        `Vous avez échangé récemment avec notre agent commercial sur notre site internet, je voulais simplement savoir si vous vouliez en discuter plus sérieusement avec un conseiller. Vous n'avez qu'à cliquer sur "Oui, appelez-moi" puis sur Envoyer, et nous vous recontacterons au plus vite.`
-      )}`;
+    paragraphs = [
+      hi,
+      `Vous avez échangé récemment avec notre agent commercial sur notre site internet, je voulais simplement savoir si vous vouliez en discuter plus sérieusement avec un conseiller. Vous n'avez qu'à cliquer sur "Oui, appelez-moi" puis sur Envoyer, et nous vous recontacterons au plus vite.`,
+    ];
   } else {
     yesBody = `Bonjour, oui je souhaite finalement qu'un conseiller m'appelle.\n\nMerci,\n${firstName}`.trim();
     noBody = `Bonjour, je vous remercie mais je ne souhaite définitivement pas être contacté.\n\nBonne journée,\n${firstName}`.trim();
-    body = `
-      ${par(hi)}
-      ${par(
-        `Je reviens vers vous une dernière fois au sujet de votre conversation avec notre agent commercial sur notre site internet. Si le moment n'est pas idéal pour vous, c'est tout à fait compréhensible et nous serons là le jour où vous serez prêt.`
-      )}
-      ${par(
-        `Un clic sur "Oui, appelez-moi" suffit pour que l'on vous recontacte plus tard si jamais vous souhaitez finalement en discuter avec un conseiller.`
-      )}
-      ${par(
-        `Quoi qu'il en soit, nous vous souhaitons une belle réussite dans votre projet immobilier.`
-      )}`;
+    paragraphs = [
+      hi,
+      `Je reviens vers vous une dernière fois au sujet de votre conversation avec notre agent commercial sur notre site internet. Si le moment n'est pas idéal pour vous, c'est tout à fait compréhensible et nous serons là le jour où vous serez prêt.`,
+      `Un clic sur "Oui, appelez-moi" suffit pour que l'on vous recontacte plus tard si jamais vous souhaitez finalement en discuter avec un conseiller.`,
+      `Quoi qu'il en soit, nous vous souhaitons une belle réussite dans votre projet immobilier.`,
+    ];
   }
 
   const buttons =
     replyButton(to, "Oui, appelez-moi", "Réponse prospect", yesBody, true) +
+    " " +
     replyButton(to, "Non merci", "Réponse prospect", noBody, false);
 
   const phoneLine = client.owner_phone
     ? `${escapeHtml(client.owner_phone)}<br/>`
     : "";
-  const signature = `
-    <p style="color:#e6e6ef;font-size:14px;line-height:1.7;margin:24px 0 0;">
-      Cordialement,<br/>
-      L'Agence ${agency}<br/>
-      ${phoneLine}${escapeHtml(client.owner_email)}
-    </p>`;
+  const br2 = "<br/><br/>";
 
-  const inner = `
-    <h1 style="font-size:19px;margin:12px 0 14px;color:#fff;">${agency}</h1>
-    ${body}
-    <div style="margin:18px 0 6px;">${buttons}</div>
-    ${signature}`;
+  // Structure la plus sûre pour Gmail : UNE seule table, UN seul <tr><td>.
+  // Tout le contenu (en-tête, corps, boutons, signature) vit dans la même
+  // cellule, séparé uniquement par des <br/>. Aucun div ni table imbriqués,
+  // aucune balise de bloc interne — rien que Gmail puisse isoler et replier
+  // derrière les « ••• ».
+  const html =
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" ` +
+    `style="max-width:560px;margin:0 auto;background:#000000;border:1px solid #882de1;border-radius:16px;font-family:Inter,Segoe UI,Arial,sans-serif;">` +
+    `<tr><td style="padding:28px 30px;color:#e6e6ef;font-size:14px;line-height:1.7;">` +
+    `<span style="font-size:18px;font-weight:700;color:#ffffff;">Selvema</span>` +
+    br2 +
+    `<span style="font-size:19px;font-weight:700;color:#ffffff;">${agency}</span>` +
+    br2 +
+    paragraphs.join(br2) +
+    br2 +
+    buttons +
+    `<br/>Cordialement,<br/>L'Agence ${agency}<br/>${phoneLine}${escapeHtml(
+      client.owner_email
+    )}` +
+    `</td></tr></table>`;
 
-  return { subject: client.agency_name, html: wrap(inner, client.id, { footer: false }) };
+  // Objet distinct pour le J+7 : Gmail ne le regroupe pas dans le même fil que
+  // le J+3 et ne replie donc pas le contenu commun derrière les « ••• ».
+  const subject =
+    step === 7
+      ? `${client.agency_name} — Dernière relance`
+      : client.agency_name;
+
+  return { subject, html };
 }
 
 /** Contexte complet de l'échange, pour que le dirigeant comprenne la situation
@@ -230,4 +274,105 @@ export function followUpNotice(client: MailClient, p: Lead, step: 3 | 7) {
     subject: `Relance J+${step} envoyée`,
     html: wrap(inner, client.id),
   };
+}
+
+/* ------------------------------------------------------------------ *
+ *  Rapport mensuel automatique (cron du 1er du mois)
+ * ------------------------------------------------------------------ */
+
+export type MonthlyStats = {
+  /** Conversations démarrées par des visiteurs sur le mois écoulé. */
+  conversations: number;
+  /** Leads qualifiés générés (prospects ayant laissé leurs coordonnées). */
+  qualifiedLeads: number;
+  /** Relances J+3 parties sur le mois. */
+  followup3: number;
+  /** Relances J+7 parties sur le mois. */
+  followup7: number;
+  /** Détail des leads qualifiés du mois. */
+  leads: Array<{
+    name: string | null;
+    email: string | null;
+    phone: string | null;
+    summary: string | null;
+  }>;
+};
+
+/**
+ * Bilan mensuel de l'assistant commercial.
+ *  - `forSelvema: false` → email au dirigeant de l'agence.
+ *  - `forSelvema: true`  → copie interne pour Jean Baptiste, avec l'agence et le
+ *    dirigeant rappelés en en-tête et un objet distinct (un email par client).
+ */
+export function monthlyReportEmail(
+  client: MailClient,
+  stats: MonthlyStats,
+  monthLabel: string,
+  opts: { forSelvema: boolean }
+) {
+  const agency = escapeHtml(client.agency_name);
+
+  const metric = (label: string, n: number) => `<tr>
+      <td style="padding:7px 14px 7px 0;color:#c9c9d4;font-size:14px;">${label}</td>
+      <td style="padding:7px 0;color:#fff;font-size:16px;font-weight:700;text-align:right;white-space:nowrap;">${n}</td>
+    </tr>`;
+
+  const leadCard = (l: MonthlyStats["leads"][number]) => {
+    const contact = [l.email, l.phone].filter((v) => v && String(v).trim());
+    return `<div style="background:#12121c;border:1px solid #24243a;border-radius:10px;padding:12px 14px;margin:0 0 10px;">
+      <div style="color:#fff;font-size:14px;font-weight:700;margin-bottom:2px;">${escapeHtml(l.name || "Sans nom")}</div>
+      ${
+        contact.length
+          ? `<div style="color:#c39bf0;font-size:13px;margin-bottom:6px;">${contact
+              .map((c) => escapeHtml(String(c)))
+              .join(" &middot; ")}</div>`
+          : ""
+      }
+      <div style="color:#c9c9d4;font-size:13px;line-height:1.6;">${escapeHtml(
+        l.summary || "Pas de résumé."
+      )}</div>
+    </div>`;
+  };
+
+  const leadsBlock = stats.leads.length
+    ? stats.leads.map(leadCard).join("")
+    : `<p style="color:#8b8b9a;font-size:13px;">Aucun lead qualifié ce mois.</p>`;
+
+  const internalHeader = opts.forSelvema
+    ? `<p style="background:#12121c;border-left:3px solid #882de1;padding:10px 14px;border-radius:8px;color:#e6e6ef;font-size:13px;line-height:1.7;margin:0 0 18px;">
+         Agence : ${agency}<br/>
+         Dirigeant : ${escapeHtml(client.owner_email)}${
+        client.owner_phone ? ` &middot; ${escapeHtml(client.owner_phone)}` : ""
+      }
+       </p>`
+    : "";
+
+  const inner = `
+    <h1 style="font-size:20px;margin:12px 0 4px;color:#fff;">Bilan mensuel${
+      opts.forSelvema ? ` &mdash; ${agency}` : ""
+    }</h1>
+    <p style="color:#8b8b9a;font-size:13px;margin:0 0 18px;">Mois écoulé : ${escapeHtml(
+      monthLabel
+    )}</p>
+    ${internalHeader}
+    <p style="color:#e6e6ef;font-size:14px;line-height:1.7;margin:0 0 16px;">Bonjour, voici le bilan de votre assistant commercial pour le mois écoulé.</p>
+    <table style="border-collapse:collapse;width:100%;margin:0 0 8px;">
+      ${metric("Conversations démarrées par des visiteurs", stats.conversations)}
+      ${metric("Leads qualifiés générés (coordonnées laissées)", stats.qualifiedLeads)}
+      ${metric("Relances J+3 envoyées", stats.followup3)}
+      ${metric("Relances J+7 envoyées", stats.followup7)}
+    </table>
+    ${kicker("Leads générés ce mois")}
+    ${leadsBlock}
+    <p style="color:#e6e6ef;font-size:14px;line-height:1.7;margin:24px 0 0;">
+      Cordialement,<br/>
+      Jean Baptiste Cossu &mdash; Selvema<br/>
+      jean.baptiste@selvema.com &mdash; 06 41 43 34 94
+    </p>`;
+
+  const subject = opts.forSelvema
+    ? `Bilan mensuel — ${client.agency_name} — ${monthLabel}`
+    : `Votre bilan mensuel — ${client.agency_name}`;
+
+  return { subject, html: wrap(inner, client.id) };
 }

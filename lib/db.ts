@@ -53,6 +53,29 @@ export type Lead = {
   followup_3_sent_at: string | null;
   followup_7_sent_at: string | null;
   last_followup_at: string | null;
+  // Scoring automatique (voir lib/scoring.ts).
+  score: number | null;
+  score_category: LeadScoreCategory | null;
+  score_breakdown: LeadScoreBreakdown | null;
+  score_updated_at: string | null;
+};
+
+export type LeadScoreCategory = "haute" | "a_suivre" | "faible";
+
+export type LeadScoreCriterion = {
+  label: string;
+  ok: boolean;
+  points: number;
+};
+
+/** Détail des points attribués par critère (stocké en jsonb). */
+export type LeadScoreBreakdown = {
+  budget_coherent: LeadScoreCriterion;
+  zone_couverte: LeadScoreCriterion;
+  projet_clair: LeadScoreCriterion;
+  delai_court: LeadScoreCriterion;
+  intention_forte: LeadScoreCriterion;
+  analyse?: string;
 };
 
 /** Ligne enrichie pour les cards du dashboard. */

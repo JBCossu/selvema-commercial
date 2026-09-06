@@ -3,8 +3,29 @@
 import { Fragment, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Lead } from "@/lib/db";
+import { SCORE_META } from "@/lib/score-meta";
 
 const DAY = 86400000;
+
+/** Pastille de score : « 🟢 87/100 · Priorité haute ». */
+function ScoreCell({ lead }: { lead: Lead }) {
+  if (lead.kind === "rappel") return <span className="text-white/25">—</span>;
+  if (typeof lead.score !== "number" || !lead.score_category) {
+    return <span className="text-white/30">Calcul en cours…</span>;
+  }
+  const m = SCORE_META[lead.score_category];
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold"
+      style={{ backgroundColor: `${m.color}22`, color: m.color }}
+      title={lead.score_breakdown?.analyse || m.label}
+    >
+      <span>{m.emoji}</span>
+      <span>{lead.score}/100</span>
+      <span className="font-medium opacity-80">· {m.label}</span>
+    </span>
+  );
+}
 
 function fmtDate(s: string) {
   return new Date(s).toLocaleDateString("fr-FR", {
@@ -86,7 +107,9 @@ export default function LeadsTable({ leads: initial }: { leads: Lead[] }) {
         ...m,
         [id]: {
           ok: true,
-          text: `Relance J+${step} envoyée à ${d.to} (test — lead inchangé).`,
+          text: d.prospect_sent
+            ? `Relance J+${step} envoyée à ${d.to} + notif dirigeant (test — lead inchangé).`
+            : `Notif J+${step} envoyée au dirigeant (lead sans email — test, lead inchangé).`,
         },
       }));
     } catch (err) {
@@ -116,6 +139,7 @@ export default function LeadsTable({ leads: initial }: { leads: Lead[] }) {
         <thead className="border-b border-[#882de1]/40 text-xs uppercase tracking-wider text-white/50">
           <tr>
             <th className="px-4 py-3 font-medium">Lead</th>
+            <th className="px-4 py-3 font-medium">Score</th>
             <th className="px-4 py-3 font-medium">Contact</th>
             <th className="px-4 py-3 font-medium">Date</th>
             <th className="px-4 py-3 font-medium">Relance J+3</th>
@@ -143,6 +167,9 @@ export default function LeadsTable({ leads: initial }: { leads: Lead[] }) {
                     {lead.status === "clos" ? " · clos" : ""}
                   </div>
                 </td>
+                <td className="px-4 py-3">
+                  <ScoreCell lead={lead} />
+                </td>
                 <td className="px-4 py-3 text-white/70">
                   {lead.email && <div>{lead.email}</div>}
                   {lead.phone && <div>{lead.phone}</div>}
@@ -159,6 +186,49 @@ export default function LeadsTable({ leads: initial }: { leads: Lead[] }) {
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex flex-col gap-2">
+                    {/* TEMPORAIRE — test interne des relances (envoi immédiat).
+                        À retirer après validation. */}
+                    <div className="rounded-lg border border-amber-400/40 bg-amber-400/5 p-2">
+                      <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300/90">
+                        Test relances (interne)
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {([3, 7] as const).map((s) => (
+                          <button
+                            key={s}
+                            disabled={testing === `${lead.id}:${s}`}
+                            onClick={() => testRelance(lead.id, s)}
+                            title={
+                              lead.email
+                                ? `Envoie tout de suite la relance J+${s} à ${lead.email} + la notif au dirigeant`
+                                : `Envoie tout de suite la notif J+${s} au dirigeant (ce lead n'a pas d'email prospect)`
+                            }
+                            className="whitespace-nowrap rounded-md bg-[#882de1] px-3 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-[#7a27c9] disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            {testing === `${lead.id}:${s}`
+                              ? "Envoi…"
+                              : `Tester relance J+${s}`}
+                          </button>
+                        ))}
+                      </div>
+                      {!lead.email && (
+                        <p className="mt-1 text-[10px] text-white/40">
+                          Sans email : seule la notif au dirigeant part.
+                        </p>
+                      )}
+                      {testMsg[lead.id] && (
+                        <p
+                          className={`mt-1.5 max-w-[220px] text-[11px] leading-snug ${
+                            testMsg[lead.id].ok
+                              ? "text-[#22c55e]"
+                              : "text-red-400"
+                          }`}
+                        >
+                          {testMsg[lead.id].text}
+                        </p>
+                      )}
+                    </div>
+
                     {lead.status === "clos" ? (
                       <button
                         disabled={busy === lead.id}
@@ -176,49 +246,12 @@ export default function LeadsTable({ leads: initial }: { leads: Lead[] }) {
                         Marquer traité
                       </button>
                     )}
-
-                    {/* Boutons de test — envoi immédiat des relances */}
-                    <div className="border-t border-dashed border-white/10 pt-2">
-                      <div className="mb-1 text-[10px] uppercase tracking-wider text-white/30">
-                        Test relances
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {([3, 7] as const).map((s) => (
-                          <button
-                            key={s}
-                            disabled={!lead.email || testing === `${lead.id}:${s}`}
-                            onClick={() => testRelance(lead.id, s)}
-                            title={
-                              lead.email
-                                ? `Envoie tout de suite la relance J+${s} à ${lead.email}`
-                                : "Ce lead n'a pas d'email"
-                            }
-                            className="whitespace-nowrap rounded-md border border-[#882de1]/40 px-2 py-1 text-[11px] text-white/70 transition-colors hover:border-[#882de1] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-                          >
-                            {testing === `${lead.id}:${s}`
-                              ? "Envoi…"
-                              : `Tester relance J+${s}`}
-                          </button>
-                        ))}
-                      </div>
-                      {testMsg[lead.id] && (
-                        <p
-                          className={`mt-1.5 max-w-[220px] text-[11px] leading-snug ${
-                            testMsg[lead.id].ok
-                              ? "text-[#22c55e]"
-                              : "text-red-400"
-                          }`}
-                        >
-                          {testMsg[lead.id].text}
-                        </p>
-                      )}
-                    </div>
                   </div>
                 </td>
               </tr>
               {open === lead.id && (
                 <tr className="border-b border-white/5 bg-white/[0.02]">
-                  <td colSpan={6} className="px-4 py-4">
+                  <td colSpan={7} className="px-4 py-4">
                     <dl className="grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2">
                       {[
                         ["Budget", lead.budget],
@@ -240,6 +273,50 @@ export default function LeadsTable({ leads: initial }: { leads: Lead[] }) {
                         {lead.summary}
                       </p>
                     )}
+
+                    {lead.kind === "qualifie" &&
+                      typeof lead.score === "number" &&
+                      lead.score_category &&
+                      lead.score_breakdown && (
+                        <div className="mt-3 rounded-lg bg-black/40 px-3 py-2.5 text-sm">
+                          <div
+                            className="mb-1.5 font-semibold"
+                            style={{
+                              color: SCORE_META[lead.score_category].color,
+                            }}
+                          >
+                            {SCORE_META[lead.score_category].emoji} Score{" "}
+                            {lead.score}/100 ·{" "}
+                            {SCORE_META[lead.score_category].label}
+                          </div>
+                          {lead.score_breakdown.analyse && (
+                            <p className="mb-2 text-xs text-white/60">
+                              {lead.score_breakdown.analyse}
+                            </p>
+                          )}
+                          <ul className="space-y-0.5 text-xs">
+                            {[
+                              lead.score_breakdown.budget_coherent,
+                              lead.score_breakdown.zone_couverte,
+                              lead.score_breakdown.projet_clair,
+                              lead.score_breakdown.delai_court,
+                              lead.score_breakdown.intention_forte,
+                            ].map((c, k) => (
+                              <li
+                                key={k}
+                                className={`flex justify-between gap-4 ${
+                                  c.ok ? "text-white/75" : "text-white/30"
+                                }`}
+                              >
+                                <span>
+                                  {c.ok ? "✓" : "·"} {c.label}
+                                </span>
+                                <span className="tabular-nums">+{c.points}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                   </td>
                 </tr>
               )}
