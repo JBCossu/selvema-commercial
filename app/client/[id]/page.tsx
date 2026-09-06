@@ -4,6 +4,7 @@ import AdminHeader from "@/components/AdminHeader";
 import CopyButton from "@/components/CopyButton";
 import LeadsTable from "@/components/LeadsTable";
 import AnalyticsFunnel from "@/components/AnalyticsFunnel";
+import TestMonthlyReportButton from "@/components/TestMonthlyReportButton";
 import { getClient, getDb } from "@/lib/db";
 import type { Lead } from "@/lib/db";
 import { integrationSnippet } from "@/lib/widget";
@@ -124,6 +125,9 @@ export default async function ClientPage({
             Analytique momentanément indisponible.
           </section>
         )}
+
+        {/* Tests internes */}
+        <TestMonthlyReportButton clientId={client.id} />
 
         {/* Configuration */}
         <section className="mt-8 rounded-2xl border border-[#882de1] bg-black p-6">

@@ -354,7 +354,7 @@ export function monthlyReportEmail(
   const inner = `
     <h1 style="font-size:20px;margin:12px 0 4px;color:#fff;">Bilan mensuel${
       opts.forSelvema ? ` &mdash; ${agency}` : ""
-    }</h1>
+    }<span style="display:inline-block;width:14px;height:14px;border-radius:50%;background-color:#16f55a;vertical-align:middle;margin-left:8px;"></span></h1>
     <p style="color:#8b8b9a;font-size:13px;margin:0 0 18px;">Mois écoulé : ${escapeHtml(
       monthLabel
     )}</p>

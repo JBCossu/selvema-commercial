@@ -419,12 +419,16 @@ export default function ChatWidget({
                 className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
               >
                 <div
-                  className="max-w-[85%] whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed"
-                  style={
-                    m.role === "user"
+                  className="max-w-[85%] rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed"
+                  style={{
+                    // Aucun texte ne dépasse la bulle (emails, URLs très longs…).
+                    wordBreak: "break-word",
+                    overflowWrap: "break-word",
+                    whiteSpace: "pre-wrap",
+                    ...(m.role === "user"
                       ? { backgroundColor: "rgba(255,255,255,0.1)", color: "#fff" }
-                      : { backgroundColor: "var(--sv-bubble)", color: "#fff" }
-                  }
+                      : { backgroundColor: "var(--sv-bubble)", color: "#fff" }),
+                  }}
                 >
                   {m.content}
                   {isTypingBubble && (
