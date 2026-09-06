@@ -75,6 +75,32 @@
   var KEY_DISMISSED = "selvema_dismissed_" + CLIENT_ID;
   var KEY_CONVERSED = "selvema_conversed_" + CLIENT_ID;
 
+  // Mémoire visiteur : UUID anonyme persistant (localStorage), aucune donnée
+  // personnelle. Transmis à l'iframe (?v=) pour reconnaître un visiteur qui
+  // revient. Généré une fois, réutilisé pour toutes les visites suivantes.
+  var VISITOR_KEY = "selvema_visitor_id";
+  function uuidv4() {
+    try {
+      if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    } catch (e) {}
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+      var r = (Math.random() * 16) | 0;
+      return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
+    });
+  }
+  function getVisitorId() {
+    try {
+      var id = localStorage.getItem(VISITOR_KEY);
+      if (!id) {
+        id = uuidv4();
+        localStorage.setItem(VISITOR_KEY, id);
+      }
+      return id;
+    } catch (e) {
+      return ""; // localStorage indisponible → pas de mémoire, comportement normal
+    }
+  }
+
   // État du déclenchement.
   var openTimer = null;
   var autoOpened = false; // le widget a été ouvert automatiquement
@@ -524,8 +550,10 @@
 
     pageType = detectPageType();
 
-    // URL de l'iframe : accroche contextuelle si page de bien.
+    // URL de l'iframe : identifiant visiteur (mémoire) + accroche contextuelle.
     var src = ORIGIN + "/embed?c=" + encodeURIComponent(CLIENT_ID);
+    var visitorId = getVisitorId();
+    if (visitorId) src += "&v=" + encodeURIComponent(visitorId);
     if (pageType === "property") {
       src += "&t=" + encodeURIComponent(PROPERTY_TAGLINE);
       TAGLINE = PROPERTY_TAGLINE;

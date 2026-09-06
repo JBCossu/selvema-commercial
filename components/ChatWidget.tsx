@@ -61,11 +61,17 @@ export default function ChatWidget({
   bubbleColor = DEFAULT_BUBBLE,
   taglineColor = DEFAULT_TAGLINE_COLOR,
   topBgColor = DEFAULT_TOP_BG,
+  visitorId,
+  returnGreeting,
 }: {
   clientId: string;
   agencyName: string;
   tagline?: string;
   ready: boolean;
+  /** UUID anonyme du visiteur (mémoire) — joint à chaque requête /api/chat. */
+  visitorId?: string;
+  /** Accueil personnalisé si le visiteur est reconnu (sinon accueil normal). */
+  returnGreeting?: string;
   /** Contours : tous les bords/bordures du widget. */
   borderColor?: string;
   /** Fond de la zone de conversation (80 %). */
@@ -83,6 +89,8 @@ export default function ChatWidget({
   const bubble = HEX.test(bubbleColor) ? bubbleColor : DEFAULT_BUBBLE;
   const taglineCol = HEX.test(taglineColor) ? taglineColor : DEFAULT_TAGLINE_COLOR;
   const topBg = HEX.test(topBgColor) ? topBgColor : DEFAULT_TOP_BG;
+  // Continuité de conversation : sessionStorage (le fil dure le temps de la
+  // session de navigation). La mémoire longue durée passe par visitorId.
   const storageKey = `selvema_conv_${clientId}`;
 
   // Accroche sur deux lignes : coupe après la 1re ponctuation forte.
@@ -92,9 +100,11 @@ export default function ChatWidget({
   const line2 = tlMatch ? tlMatch[2].trim() : "";
   const fullTagline = line2 ? `${line1}\n${line2}` : line1;
 
-  const greeting = ready
-    ? `Bonjour ! Je connais tous les biens et services de l'agence par cœur, alors n'hésitez pas à me poser n'importe laquelle de vos questions.`
-    : `Bonjour 👋 L'assistant en ligne est momentanément indisponible. Merci de revenir un peu plus tard.`;
+  const greeting = !ready
+    ? `Bonjour 👋 L'assistant en ligne est momentanément indisponible. Merci de revenir un peu plus tard.`
+    : returnGreeting && returnGreeting.trim()
+      ? returnGreeting.trim()
+      : `Bonjour ! Je connais tous les biens et services de l'agence par cœur, alors n'hésitez pas à me poser n'importe laquelle de vos questions.`;
 
   // La conversation démarre vide : le message de bienvenue n'apparaît qu'à
   // l'étape 4 de la séquence d'entrée (voir plus bas), tapé lettre par lettre.
@@ -115,10 +125,10 @@ export default function ChatWidget({
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem(storageKey);
+      const saved = sessionStorage.getItem(storageKey);
       if (saved) setConversationId(saved);
     } catch {
-      /* localStorage indisponible */
+      /* sessionStorage indisponible */
     }
   }, [storageKey]);
 
@@ -232,7 +242,12 @@ export default function ChatWidget({
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientId, conversationId, message: text }),
+        body: JSON.stringify({
+          clientId,
+          conversationId,
+          message: text,
+          visitorId: visitorId || undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur");
@@ -240,7 +255,7 @@ export default function ChatWidget({
       if (data.conversationId && data.conversationId !== conversationId) {
         setConversationId(data.conversationId);
         try {
-          localStorage.setItem(storageKey, data.conversationId);
+          sessionStorage.setItem(storageKey, data.conversationId);
         } catch {
           /* ignore */
         }

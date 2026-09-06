@@ -90,6 +90,12 @@ alter table leads add column if not exists score_category   text;        -- 'hau
 alter table leads add column if not exists score_breakdown  jsonb;       -- détail des points par critère
 alter table leads add column if not exists score_updated_at timestamptz;
 
+-- Mémoire visiteur : identifiant anonyme (UUID) généré côté navigateur
+-- (localStorage), permet de reconnaître un visiteur qui revient. Aucune donnée
+-- personnelle : juste l'UUID.
+alter table conversations add column if not exists visitor_id text;
+
 create index if not exists leads_client_created_idx on leads (client_id, created_at desc);
 create index if not exists leads_status_idx on leads (status);
 create index if not exists conversations_client_idx on conversations (client_id);
+create index if not exists conversations_visitor_idx on conversations (client_id, visitor_id);

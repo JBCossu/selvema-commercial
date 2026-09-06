@@ -29,12 +29,15 @@ const MAX_TURNS = 4;
 export async function runChat(
   client: Client,
   history: ChatMessage[],
-  userMessage: string
+  userMessage: string,
+  opts?: { visitorMemory?: string }
 ): Promise<ChatResult> {
   const anthropic = getAnthropic();
-  // Les deux prompts sont combinés ici : le prompt système fixe d'abord,
-  // suivi de la base de connaissances propre au client.
-  const system = `${SYSTEM_PROMPT}\n\n${knowledgeBasePrompt(client)}`;
+  // Prompt système fixe, puis base de connaissances du client, puis — si le
+  // visiteur est reconnu — le rappel de sa précédente visite.
+  const system =
+    `${SYSTEM_PROMPT}\n\n${knowledgeBasePrompt(client)}` +
+    (opts?.visitorMemory ? `\n\n${opts.visitorMemory}` : "");
 
   const messages: Anthropic.MessageParam[] = [
     ...history.map((m) => ({ role: m.role, content: m.content })),

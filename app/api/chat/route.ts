@@ -5,6 +5,7 @@ import { runChat, type ToolCall } from "@/lib/anthropic";
 import { getResend, FROM_EMAIL } from "@/lib/resend";
 import { prospectEmail, callbackEmail } from "@/lib/emails";
 import { scoreConversation } from "@/lib/scoring";
+import { isVisitorId, getVisitorMemory, visitorMemoryPrompt } from "@/lib/visitor";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -19,7 +20,12 @@ function str(v: unknown): string | null {
 }
 
 export async function POST(request: Request) {
-  let body: { clientId?: string; conversationId?: string; message?: string };
+  let body: {
+    clientId?: string;
+    conversationId?: string;
+    message?: string;
+    visitorId?: string;
+  };
   try {
     body = await request.json();
   } catch {
@@ -40,6 +46,9 @@ export async function POST(request: Request) {
     typeof body.conversationId === "string" && body.conversationId
       ? body.conversationId
       : null;
+
+  // Identifiant visiteur anonyme (mémoire). Ignoré s'il n'a pas la forme d'un UUID.
+  const visitorId = isVisitorId(body.visitorId) ? body.visitorId : null;
 
   let client: Client | null;
   try {
@@ -72,11 +81,23 @@ export async function POST(request: Request) {
     if (rows[0]?.messages) history = rows[0].messages.slice(-MAX_HISTORY);
   }
 
+  // Mémoire visiteur : pour une NOUVELLE conversation, si ce visiteur a déjà
+  // échangé avec ce client, on rappelle sa précédente visite au modèle.
+  let visitorMemory: string | undefined;
+  if (!conversationId && visitorId) {
+    try {
+      const mem = await getVisitorMemory(clientId, visitorId);
+      if (mem) visitorMemory = visitorMemoryPrompt(mem);
+    } catch (err) {
+      console.error("getVisitorMemory error", err);
+    }
+  }
+
   // Appel au modèle
   let reply: string;
   let toolCalls: ToolCall[] = [];
   try {
-    const result = await runChat(client, history, message);
+    const result = await runChat(client, history, message, { visitorMemory });
     reply = result.reply;
     toolCalls = result.toolCalls;
   } catch (err) {
@@ -109,8 +130,11 @@ export async function POST(request: Request) {
     `;
   } else {
     const rows = (await sql`
-      insert into conversations (client_id, messages, qualified, callback_requested)
-      values (${clientId}, ${JSON.stringify(updated)}::jsonb, ${qualified}, ${callback})
+      insert into conversations
+        (client_id, visitor_id, messages, qualified, callback_requested)
+      values
+        (${clientId}, ${visitorId}, ${JSON.stringify(updated)}::jsonb,
+         ${qualified}, ${callback})
       returning id
     `) as { id: string }[];
     convId = rows[0].id;

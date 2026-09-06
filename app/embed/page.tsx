@@ -1,13 +1,18 @@
 import ChatWidget from "@/components/ChatWidget";
 import EmbedBodyClass from "./EmbedBodyClass";
 import { getClient, clientReady } from "@/lib/db";
+import {
+  isVisitorId,
+  getVisitorMemory,
+  returningGreeting,
+} from "@/lib/visitor";
 
 export const dynamic = "force-dynamic";
 
 export default async function EmbedPage({
   searchParams,
 }: {
-  searchParams: { c?: string; t?: string };
+  searchParams: { c?: string; t?: string; v?: string };
 }) {
   const clientId = typeof searchParams.c === "string" ? searchParams.c : "";
   // Accroche contextuelle passée par widget.js (ex. page de bien). Prioritaire
@@ -16,6 +21,8 @@ export default async function EmbedPage({
     typeof searchParams.t === "string" && searchParams.t.trim()
       ? searchParams.t.trim().slice(0, 200)
       : "";
+  // Identifiant visiteur anonyme (mémoire).
+  const visitorId = isVisitorId(searchParams.v) ? searchParams.v : "";
 
   if (!clientId) {
     return (
@@ -30,6 +37,7 @@ export default async function EmbedPage({
   let agencyName = "Assistant";
   let ready = false;
   let tagline = "Une question ? Je suis là pour vous aider.";
+  let returnGreeting = ""; // accueil « content de vous revoir » si visiteur connu
   // Couleurs du widget.
   let borderColor = "#882de1";
   let bgColor = "#0a0a1a";
@@ -47,6 +55,11 @@ export default async function EmbedPage({
     if (client?.bubble_color) bubbleColor = client.bubble_color;
     if (client?.tagline_color) taglineColor = client.tagline_color;
     if (client?.top_bg_color) topBgColor = client.top_bg_color;
+
+    if (ready && visitorId) {
+      const mem = await getVisitorMemory(clientId, visitorId);
+      if (mem) returnGreeting = returningGreeting(mem);
+    }
   } catch {
     ready = false;
   }
@@ -61,6 +74,8 @@ export default async function EmbedPage({
         agencyName={agencyName}
         tagline={tagline}
         ready={ready}
+        visitorId={visitorId || undefined}
+        returnGreeting={returnGreeting || undefined}
         borderColor={borderColor}
         bgColor={bgColor}
         bubbleColor={bubbleColor}
