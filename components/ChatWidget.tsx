@@ -15,6 +15,8 @@ const DEFAULT_TAGLINE_COLOR = "#ffffff"; // texte de la phrase d'accroche
 const DEFAULT_TOP_BG = "#000000"; //   fond de la zone haute personnage (20 %)
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
+// Doit rester aligné avec MAX_MESSAGE_LEN côté /api/chat.
+const MAX_MESSAGE_LEN = 500;
 
 function hexToRgba(hex: string, alpha: number): string {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
@@ -111,6 +113,8 @@ export default function ChatWidget({
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  // La conversation a atteint le plafond de messages côté serveur.
+  const [limitReached, setLimitReached] = useState(false);
   const [sendHover, setSendHover] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
 
@@ -218,7 +222,19 @@ export default function ChatWidget({
 
   async function send() {
     const text = input.trim();
-    if (!text || loading || !ready) return;
+    if (!text || loading || !ready || limitReached) return;
+
+    // Message trop long : refusé sans requête (le serveur applique la même règle).
+    if (text.length > MAX_MESSAGE_LEN) {
+      setMessages((m) => [
+        ...m,
+        {
+          role: "assistant",
+          content: "Votre message est trop long. Merci de le raccourcir.",
+        },
+      ]);
+      return;
+    }
 
     // Prévient widget.js (page hôte) qu'une conversation a commencé → il ne
     // rouvrira plus le widget automatiquement de toute la session.
@@ -249,8 +265,20 @@ export default function ChatWidget({
           visitorId: visitorId || undefined,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Erreur");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        // Message d'erreur explicite renvoyé par l'API (trop long, rate limit…).
+        setMessages((m) => [
+          ...m,
+          {
+            role: "assistant",
+            content:
+              data.error ||
+              "Désolé, une erreur est survenue. Pouvez-vous réessayer dans un instant ?",
+          },
+        ]);
+        return;
+      }
 
       if (data.conversationId && data.conversationId !== conversationId) {
         setConversationId(data.conversationId);
@@ -261,6 +289,7 @@ export default function ChatWidget({
         }
       }
       setMessages((m) => [...m, { role: "assistant", content: data.reply }]);
+      if (data.limitReached) setLimitReached(true);
     } catch {
       setMessages((m) => [
         ...m,
@@ -482,7 +511,7 @@ export default function ChatWidget({
           <textarea
             rows={1}
             value={input}
-            disabled={!ready}
+            disabled={!ready || limitReached}
             onChange={(e) => setInput(e.target.value)}
             onFocus={(e) => (e.currentTarget.style.borderColor = border)}
             onBlur={(e) =>
@@ -494,7 +523,13 @@ export default function ChatWidget({
                 send();
               }
             }}
-            placeholder={ready ? "Posez votre question…" : "Indisponible"}
+            placeholder={
+              limitReached
+                ? "Merci de contacter directement l'agence"
+                : ready
+                  ? "Posez votre question…"
+                  : "Indisponible"
+            }
             className="h-9 max-h-[72px] flex-1 resize-none rounded-lg px-3 py-2 text-[13px] text-white placeholder:text-white/40 outline-none transition-colors"
             style={{
               background: hexToRgba(bg, 0.6),
@@ -505,7 +540,7 @@ export default function ChatWidget({
             onClick={send}
             onMouseEnter={() => setSendHover(true)}
             onMouseLeave={() => setSendHover(false)}
-            disabled={loading || !input.trim() || !ready}
+            disabled={loading || !input.trim() || !ready || limitReached}
             aria-label="Envoyer"
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white transition-colors disabled:opacity-40"
             style={{

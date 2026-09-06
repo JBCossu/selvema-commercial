@@ -1,5 +1,12 @@
 import { NextResponse } from "next/server";
 import { isPublicHttpUrl, analyzeSite } from "@/lib/analyze";
+import { GENERIC_ERROR } from "@/lib/http";
+
+// Messages « métier » que analyzeSite lève volontairement (site injoignable,
+// application JS, contenu insuffisant) : sûrs à afficher tels quels. Tout autre
+// message (SDK Anthropic, réseau bas niveau, bug) reste dans les logs.
+const SAFE_ANALYZE_ERROR =
+  /^(Le site semble|Impossible de récupérer|Aucune page exploitable|Trop peu de texte|La page n'est pas au format HTML|Redirection vers une adresse non autorisée)/;
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -36,11 +43,10 @@ export async function POST(request: Request) {
     });
   } catch (err) {
     console.error("analyzeSite error", err);
-    const message =
-      err instanceof Error ? err.message : "L'analyse du site a échoué.";
-    return NextResponse.json(
-      { error: `L'analyse du site a échoué (${message}).` },
-      { status: 502 }
-    );
+    const safe =
+      err instanceof Error && SAFE_ANALYZE_ERROR.test(err.message)
+        ? err.message
+        : GENERIC_ERROR;
+    return NextResponse.json({ error: safe }, { status: 502 });
   }
 }

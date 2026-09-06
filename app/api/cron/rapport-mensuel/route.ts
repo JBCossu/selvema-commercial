@@ -6,6 +6,7 @@ import {
   type MailClient,
   type MonthlyStats,
 } from "@/lib/emails";
+import { genericError } from "@/lib/http";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -47,10 +48,8 @@ async function run(request: Request) {
     return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
   }
   if (!process.env.RESEND_API_KEY) {
-    return NextResponse.json(
-      { error: "RESEND_API_KEY non configurée." },
-      { status: 500 }
-    );
+    console.error("[cron/rapport-mensuel] RESEND_API_KEY non configurée");
+    return genericError(500);
   }
 
   const startedAt = Date.now();
@@ -111,10 +110,7 @@ async function run(request: Request) {
     `) as CountRow[];
   } catch (err) {
     console.error("[cron/rapport-mensuel] lecture des données impossible", err);
-    return NextResponse.json(
-      { error: "Lecture des données impossible." },
-      { status: 502 }
-    );
+    return genericError(502);
   }
 
   const convByClient = new Map(convRows.map((r) => [r.client_id, r.n]));
@@ -242,10 +238,19 @@ async function run(request: Request) {
   return NextResponse.json(summary);
 }
 
+async function safeRun(request: Request) {
+  try {
+    return await run(request);
+  } catch (err) {
+    console.error("[cron/rapport-mensuel] erreur non gérée", err);
+    return genericError(500);
+  }
+}
+
 export async function GET(request: Request) {
-  return run(request);
+  return safeRun(request);
 }
 
 export async function POST(request: Request) {
-  return run(request);
+  return safeRun(request);
 }

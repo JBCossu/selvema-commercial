@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { SESSION_COOKIE, createSessionToken } from "@/lib/session";
+import { genericError } from "@/lib/http";
 
 export const dynamic = "force-dynamic";
 
@@ -13,10 +14,8 @@ export async function POST(request: Request) {
 
   const expected = process.env.ADMIN_PASSWORD;
   if (!expected) {
-    return NextResponse.json(
-      { error: "ADMIN_PASSWORD n'est pas configuré sur le serveur." },
-      { status: 500 }
-    );
+    console.error("login: ADMIN_PASSWORD manquant côté serveur");
+    return genericError(500);
   }
 
   if (!body.password || body.password !== expected) {

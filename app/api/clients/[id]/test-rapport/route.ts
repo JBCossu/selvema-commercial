@@ -6,6 +6,8 @@ import {
   type MailClient,
   type MonthlyStats,
 } from "@/lib/emails";
+import { genericError } from "@/lib/http";
+import { requireAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -16,7 +18,8 @@ export const maxDuration = 30;
  * 1er du mois, prend le mois EN COURS jusqu'à maintenant, envoie au dirigeant
  * avec un objet préfixé [TEST] et ne saute pas les clients sans conversation.
  *
- * Route protégée par le middleware (/api/clients/*) → admin connecté uniquement.
+ * Route protégée par le middleware (/api/clients/*) ET par requireAdmin() en
+ * tête de handler (double verrou) → admin connecté uniquement.
  */
 
 type LeadRow = {
@@ -30,20 +33,22 @@ export async function POST(
   _request: Request,
   { params }: { params: { id: string } }
 ) {
+  const denied = await requireAdmin();
+  if (denied) return denied;
+
   let client;
   try {
     client = await getClient(params.id);
-  } catch {
-    return NextResponse.json({ error: "Base inaccessible." }, { status: 502 });
+  } catch (err) {
+    console.error("test-rapport getClient", err);
+    return genericError(502);
   }
   if (!client) {
     return NextResponse.json({ error: "Client introuvable." }, { status: 404 });
   }
   if (!process.env.RESEND_API_KEY) {
-    return NextResponse.json(
-      { error: "RESEND_API_KEY non configurée." },
-      { status: 500 }
-    );
+    console.error("test-rapport: RESEND_API_KEY manquante");
+    return genericError(500);
   }
 
   // Mois en cours, du 1er (UTC) jusqu'à maintenant.
@@ -89,10 +94,7 @@ export async function POST(
     f7 = (b as { n: number }[])[0]?.n ?? 0;
   } catch (err) {
     console.error("test-rapport lecture données", err);
-    return NextResponse.json(
-      { error: "Lecture des données impossible." },
-      { status: 502 }
-    );
+    return genericError(502);
   }
 
   const stats: MonthlyStats = {
@@ -125,10 +127,7 @@ export async function POST(
     });
   } catch (err) {
     console.error("test-rapport envoi", err);
-    return NextResponse.json(
-      { error: "Échec de l'envoi via Resend." },
-      { status: 502 }
-    );
+    return genericError(502);
   }
 
   return NextResponse.json({

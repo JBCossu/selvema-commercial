@@ -3,6 +3,7 @@ import { getDb } from "@/lib/db";
 import type { Lead } from "@/lib/db";
 import { getResend, FROM_EMAIL, fromWithName } from "@/lib/resend";
 import { followUpEmail, followUpNotice, type MailClient } from "@/lib/emails";
+import { genericError } from "@/lib/http";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -127,10 +128,19 @@ async function run(request: Request) {
   });
 }
 
+async function safeRun(request: Request) {
+  try {
+    return await run(request);
+  } catch (err) {
+    console.error("[cron/relances] erreur non gérée", err);
+    return genericError(500);
+  }
+}
+
 export async function GET(request: Request) {
-  return run(request);
+  return safeRun(request);
 }
 
 export async function POST(request: Request) {
-  return run(request);
+  return safeRun(request);
 }

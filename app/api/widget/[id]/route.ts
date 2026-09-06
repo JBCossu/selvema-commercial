@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getClient, clientReady } from "@/lib/db";
+import { GENERIC_ERROR } from "@/lib/http";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +45,7 @@ export async function GET(
   } catch (err) {
     console.error("widget meta error", err);
     return NextResponse.json(
-      { error: "indisponible" },
+      { error: GENERIC_ERROR },
       { status: 502, headers: CORS }
     );
   }

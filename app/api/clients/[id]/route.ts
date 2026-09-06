@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import type { Client } from "@/lib/db";
+import { genericError } from "@/lib/http";
+import { requireAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +27,9 @@ export async function GET(
   _request: Request,
   { params }: { params: { id: string } }
 ) {
+  const denied = await requireAdmin();
+  if (denied) return denied;
+
   try {
     const sql = getDb();
     const rows = (await sql`
@@ -36,7 +41,7 @@ export async function GET(
     return NextResponse.json({ client: rows[0] });
   } catch (err) {
     console.error("client GET error", err);
-    return NextResponse.json({ error: "Base inaccessible." }, { status: 500 });
+    return genericError(500);
   }
 }
 
@@ -44,6 +49,9 @@ export async function PATCH(
   request: Request,
   { params }: { params: { id: string } }
 ) {
+  const denied = await requireAdmin();
+  if (denied) return denied;
+
   let body: Record<string, unknown>;
   try {
     body = await request.json();
@@ -105,9 +113,6 @@ export async function PATCH(
     return NextResponse.json({ client: rows[0] });
   } catch (err) {
     console.error("client PATCH error", err);
-    return NextResponse.json(
-      { error: "Impossible d'enregistrer (base de données)." },
-      { status: 500 }
-    );
+    return genericError(500);
   }
 }

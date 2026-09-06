@@ -94,8 +94,11 @@ alter table leads add column if not exists score_updated_at timestamptz;
 -- (localStorage), permet de reconnaître un visiteur qui revient. Aucune donnée
 -- personnelle : juste l'UUID.
 alter table conversations add column if not exists visitor_id text;
+-- Empreinte salée de l'IP (jamais l'IP brute) — rate limiting du chatbot.
+alter table conversations add column if not exists ip_hash text;
 
 create index if not exists leads_client_created_idx on leads (client_id, created_at desc);
 create index if not exists leads_status_idx on leads (status);
 create index if not exists conversations_client_idx on conversations (client_id);
 create index if not exists conversations_visitor_idx on conversations (client_id, visitor_id);
+create index if not exists conversations_ip_idx on conversations (ip_hash, created_at);

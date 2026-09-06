@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import type { Client } from "@/lib/db";
 import { integrationSnippet } from "@/lib/widget";
+import { GENERIC_ERROR, genericError } from "@/lib/http";
+import { requireAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +25,9 @@ const normColor = (v: string, fallback: string) =>
   /^#[0-9a-fA-F]{6}$/.test(v) ? v.toLowerCase() : fallback;
 
 export async function GET() {
+  const denied = await requireAdmin();
+  if (denied) return denied;
+
   try {
     const sql = getDb();
     const clients = (await sql`
@@ -32,13 +37,16 @@ export async function GET() {
   } catch (err) {
     console.error("clients GET error", err);
     return NextResponse.json(
-      { clients: [], error: "Base de données inaccessible." },
+      { clients: [], error: GENERIC_ERROR },
       { status: 200 }
     );
   }
 }
 
 export async function POST(request: Request) {
+  const denied = await requireAdmin();
+  if (denied) return denied;
+
   let body: Record<string, unknown>;
   try {
     body = await request.json();
@@ -92,9 +100,6 @@ export async function POST(request: Request) {
     });
   } catch (err) {
     console.error("clients POST error", err);
-    return NextResponse.json(
-      { error: "Impossible de créer le client (base de données)." },
-      { status: 500 }
-    );
+    return genericError(500);
   }
 }

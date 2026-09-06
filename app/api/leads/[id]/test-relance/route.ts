@@ -3,6 +3,8 @@ import { getDb } from "@/lib/db";
 import type { Lead } from "@/lib/db";
 import { getResend, FROM_EMAIL, fromWithName } from "@/lib/resend";
 import { followUpEmail, followUpNotice, type MailClient } from "@/lib/emails";
+import { genericError } from "@/lib/http";
+import { requireAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +15,8 @@ export const dynamic = "force-dynamic";
  * modifie PAS l'état du lead (dates de relance, statut) — le cron quotidien
  * fait toujours son travail normalement.
  *
- * Route protégée par le middleware (/api/leads/*) → admin connecté uniquement.
+ * Route protégée par le middleware (/api/leads/*) ET par requireAdmin() en tête
+ * de handler (double verrou) → admin connecté uniquement.
  */
 
 type JoinedLead = Lead & {
@@ -27,6 +30,9 @@ export async function POST(
   request: Request,
   { params }: { params: { id: string } }
 ) {
+  const denied = await requireAdmin();
+  if (denied) return denied;
+
   let body: { step?: number };
   try {
     body = await request.json();
@@ -43,13 +49,19 @@ export async function POST(
     );
   }
 
-  const sql = getDb();
-  const rows = (await sql`
-    select l.*, c.id as c_id, c.agency_name, c.owner_email, c.owner_phone
-    from leads l
-    join clients c on c.id = l.client_id
-    where l.id = ${params.id}
-  `) as JoinedLead[];
+  let rows: JoinedLead[];
+  try {
+    const sql = getDb();
+    rows = (await sql`
+      select l.*, c.id as c_id, c.agency_name, c.owner_email, c.owner_phone
+      from leads l
+      join clients c on c.id = l.client_id
+      where l.id = ${params.id}
+    `) as JoinedLead[];
+  } catch (err) {
+    console.error("test-relance lecture lead", err);
+    return genericError(502);
+  }
 
   const r = rows[0];
   if (!r) {
@@ -103,9 +115,6 @@ export async function POST(
     });
   } catch (err) {
     console.error("test-relance error", err);
-    return NextResponse.json(
-      { error: "Échec de l'envoi via Resend." },
-      { status: 502 }
-    );
+    return genericError(502);
   }
 }

@@ -6,12 +6,21 @@ import { getResend, FROM_EMAIL } from "@/lib/resend";
 import { prospectEmail, callbackEmail } from "@/lib/emails";
 import { scoreConversation } from "@/lib/scoring";
 import { isVisitorId, getVisitorMemory, visitorMemoryPrompt } from "@/lib/visitor";
+import { clientIp, hashIp } from "@/lib/net";
+import { genericError } from "@/lib/http";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 const MAX_HISTORY = 20;
-const MAX_MESSAGE_LEN = 2000;
+// Un message trop long est refusé (pas tronqué) avant tout appel modèle.
+const MAX_MESSAGE_LEN = 500;
+// Plafond dur : au-delà, le chatbot ne répond plus (protection abus + coûts API).
+const MAX_MESSAGES_PER_CONVERSATION = 20;
+const CONVERSATION_LIMIT_REPLY =
+  "Pour la suite de votre demande, je vous invite à contacter directement l'agence.";
+// Rate limiting : nombre max de NOUVELLES conversations par IP et par heure.
+const MAX_NEW_CONVERSATIONS_PER_IP_PER_HOUR = 3;
 
 function str(v: unknown): string | null {
   if (typeof v !== "string") return null;
@@ -20,6 +29,17 @@ function str(v: unknown): string | null {
 }
 
 export async function POST(request: Request) {
+  // Filet de sécurité : toute erreur non anticipée (DB, réseau, bug…) ressort
+  // en message générique. Le détail reste dans les logs (console.error).
+  try {
+    return await handleChat(request);
+  } catch (err) {
+    console.error("chat route uncaught error", err);
+    return genericError(500);
+  }
+}
+
+async function handleChat(request: Request) {
   let body: {
     clientId?: string;
     conversationId?: string;
@@ -38,9 +58,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "clientId manquant." }, { status: 400 });
   }
 
-  const message = (body.message ?? "").toString().slice(0, MAX_MESSAGE_LEN).trim();
+  const message = (body.message ?? "").toString().trim();
   if (!message) {
     return NextResponse.json({ error: "Message vide." }, { status: 400 });
+  }
+  // 1) Message trop long → refus immédiat, aucun appel Anthropic.
+  if (message.length > MAX_MESSAGE_LEN) {
+    return NextResponse.json(
+      {
+        error: "Votre message est trop long. Merci de le raccourcir.",
+        messageTooLong: true,
+      },
+      { status: 400 }
+    );
   }
   const conversationId =
     typeof body.conversationId === "string" && body.conversationId
@@ -55,10 +85,7 @@ export async function POST(request: Request) {
     client = await getClient(clientId);
   } catch (err) {
     console.error("getClient error", err);
-    return NextResponse.json(
-      { error: "Service momentanément indisponible." },
-      { status: 502 }
-    );
+    return genericError(502);
   }
 
   if (!clientReady(client)) {
@@ -71,14 +98,53 @@ export async function POST(request: Request) {
 
   const sql = getDb();
 
+  // 2) Rate limiting par IP : au plus 3 NOUVELLES conversations par heure.
+  //    Ne concerne que le démarrage d'une conversation (conversationId absent).
+  const ip = clientIp(request);
+  const ipHash = ip ? hashIp(ip) : "";
+  if (!conversationId && ipHash) {
+    try {
+      const rows = (await sql`
+        select count(*)::int as n from conversations
+        where ip_hash = ${ipHash} and created_at > now() - interval '1 hour'
+      `) as { n: number }[];
+      if ((rows[0]?.n ?? 0) >= MAX_NEW_CONVERSATIONS_PER_IP_PER_HOUR) {
+        return NextResponse.json(
+          {
+            error:
+              "Merci de patienter avant de démarrer une nouvelle conversation.",
+            rateLimited: true,
+          },
+          { status: 429 }
+        );
+      }
+    } catch (err) {
+      console.error("rate limit check error", err); // en cas d'erreur DB, on laisse passer
+    }
+  }
+
   // Historique (scopé au client)
   let history: ChatMessage[] = [];
+  let totalMessages = 0;
   if (conversationId) {
     const rows = (await sql`
       select messages from conversations
       where id = ${conversationId} and client_id = ${clientId}
     `) as { messages: ChatMessage[] }[];
-    if (rows[0]?.messages) history = rows[0].messages.slice(-MAX_HISTORY);
+    if (rows[0]?.messages) {
+      totalMessages = rows[0].messages.length;
+      history = rows[0].messages.slice(-MAX_HISTORY);
+    }
+  }
+
+  // Plafond dur : au-delà de 20 messages stockés (ce tour en ajouterait 2),
+  // réponse fixe, aucun appel modèle, aucune écriture (protection abus + coûts).
+  if (totalMessages >= MAX_MESSAGES_PER_CONVERSATION - 1) {
+    return NextResponse.json({
+      conversationId,
+      reply: CONVERSATION_LIMIT_REPLY,
+      limitReached: true,
+    });
   }
 
   // Mémoire visiteur : pour une NOUVELLE conversation, si ce visiteur a déjà
@@ -102,10 +168,7 @@ export async function POST(request: Request) {
     toolCalls = result.toolCalls;
   } catch (err) {
     console.error("runChat error", err);
-    return NextResponse.json(
-      { error: "L'assistant est momentanément indisponible." },
-      { status: 502 }
-    );
+    return genericError(502);
   }
 
   const updated: ChatMessage[] = [
@@ -131,10 +194,10 @@ export async function POST(request: Request) {
   } else {
     const rows = (await sql`
       insert into conversations
-        (client_id, visitor_id, messages, qualified, callback_requested)
+        (client_id, visitor_id, ip_hash, messages, qualified, callback_requested)
       values
-        (${clientId}, ${visitorId}, ${JSON.stringify(updated)}::jsonb,
-         ${qualified}, ${callback})
+        (${clientId}, ${visitorId}, ${ipHash || null},
+         ${JSON.stringify(updated)}::jsonb, ${qualified}, ${callback})
       returning id
     `) as { id: string }[];
     convId = rows[0].id;
